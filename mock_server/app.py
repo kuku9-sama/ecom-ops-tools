@@ -5,9 +5,12 @@ from datetime import datetime
 
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-app = FastAPI(title="Mock Lazada")
+app = FastAPI(
+    title="本地 Mock 平台",
+    description="模拟 Lazada 形状的订单与商品端点；不校验真实签名。",
+)
 
 # 故障注入状态：测试通过 POST /mock/fault 设置，消费 times 次后自动恢复。
 FAULT = {"mode": None, "times": 0}
@@ -65,8 +68,15 @@ ORDERS = [
 ]
 
 
-@app.post("/mock/fault")
-def set_fault(mode: str | None = None, times: int = 1):
+@app.post(
+    "/mock/fault",
+    summary="注入故障",
+    description="mode 支持 401/429/500/bad_json/timeout；times 是消费次数。",
+)
+def set_fault(
+    mode: str | None = Query(None, description="故障类型"),
+    times: int = Query(1, description="消费次数"),
+):
     FAULT.update(mode=mode, times=times)
     return {"ok": True, "fault": FAULT}
 
@@ -100,8 +110,12 @@ def _maybe_fault():
     return None
 
 
-@app.post("/rest/auth/token/create")
-def token_create(app_key: str = "mock"):
+@app.post(
+    "/rest/auth/token/create",
+    summary="创建访问令牌",
+    description="Mock 只检查 app_key，不校验真实签名。",
+)
+def token_create(app_key: str = Query("mock", description="应用标识")):
     # 真实 Lazada 要校验 sign；这里只检查参数存在，明确是 Mock。
     if not app_key:
         return JSONResponse(
@@ -115,11 +129,15 @@ def token_create(app_key: str = "mock"):
     }
 
 
-@app.get("/rest/orders/get")
+@app.get(
+    "/rest/orders/get",
+    summary="拉取订单",
+    description="支持 update_after、limit、offset 分页。",
+)
 async def orders_get(
-    update_after: str | None = None,
-    limit: int = Query(100, ge=1),
-    offset: int = Query(0, ge=0),
+    update_after: str | None = Query(None, description="ISO 时间，必须带时区"),
+    limit: int = Query(100, ge=1, description="每页条数，最大 100"),
+    offset: int = Query(0, ge=0, description="偏移量"),
 ):
     fault = _maybe_fault()
     if isinstance(fault, dict) and "__sleep__" in fault:
@@ -162,14 +180,14 @@ async def orders_get(
 
 
 class ProductCreate(BaseModel):
-    seller_sku: str
-    name: str
-    price: str
-    currency: str
-    quantity: int
-    category: str | None = None
-    image_url: str
-    idempotency_key: str
+    seller_sku: str = Field(description="卖家 SKU")
+    name: str = Field(description="商品标题")
+    price: str = Field(description="价格字符串")
+    currency: str = Field(description="币种")
+    quantity: int = Field(description="库存")
+    category: str | None = Field(default=None, description="类目")
+    image_url: str = Field(description="图片 URL")
+    idempotency_key: str = Field(description="幂等键")
 
 
 def _create_draft(payload: ProductCreate) -> str:
@@ -178,7 +196,11 @@ def _create_draft(payload: ProductCreate) -> str:
     return DRAFTS[payload.seller_sku]
 
 
-@app.post("/rest/product/create")
+@app.post(
+    "/rest/product/create",
+    summary="创建商品草稿",
+    description="按 seller_sku 幂等；只建草稿，不发布。",
+)
 async def product_create(payload: ProductCreate):
     fault = _maybe_fault()
     if isinstance(fault, dict) and "__sleep__" in fault:
@@ -192,8 +214,8 @@ async def product_create(payload: ProductCreate):
     return {"code": "0", "data": {"product_id": _create_draft(payload)}}
 
 
-@app.get("/rest/product/get")
-def product_get(sku: str):
+@app.get("/rest/product/get", summary="按 SKU 查询商品")
+def product_get(sku: str = Query(..., description="卖家 SKU")):
     product_id = DRAFTS.get(sku)
     if product_id is None:
         return JSONResponse(
