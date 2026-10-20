@@ -1,8 +1,8 @@
-# 数据契约 v0.1
+# 数据契约 v0.2
 
 > 项目：ecom-ops-tools
 > 日期：2026-10-20
-> 状态：初版
+> 状态：第二版（补充商品草稿字段）
 >
 > 这份文档是 CSV、领域模型、SQLite 表、平台适配器、对账规则之间的共同约定。
 > 改字段、改键、改金额语义，先改这里，再改代码。
@@ -11,7 +11,7 @@
 
 ## 1. 范围
 
-v0.1 覆盖：
+v0.2 覆盖：
 
 - 商品草稿（Product）
 - 订单头（Order）
@@ -20,7 +20,7 @@ v0.1 覆盖：
 - 汇率（FxRate）
 - 同步运行与逐项状态（SyncRun / SyncItem）
 
-不在 v0.1：
+不在 v0.2：
 
 - 库存快照（后续补）
 - LLM 提取结果（后续补）
@@ -46,7 +46,7 @@ v0.1 覆盖：
 
 ### 2.3 币种
 
-ISO 4217 大写三字母。v0.1 支持：
+ISO 4217 大写三字母。v0.2 支持：
 
 | 币种 | 最小单位位数 | 例子 |
 |---|---|---|
@@ -66,7 +66,7 @@ ISO 4217 大写三字母。v0.1 支持：
 - `rate` 是 Decimal 字符串，存 TEXT，不用 float。
 - 方向：`1 base = rate quote`。例如 `USD,CNY,7.2500` 表示 1 USD = 7.25 CNY。
 - 必须 > 0。
-- v0.1 只支持直接货币对，不做三角换算。
+- v0.2 只支持直接货币对，不做三角换算。
 
 ### 2.5 时间与日期
 
@@ -98,10 +98,12 @@ ISO 4217 大写三字母。v0.1 支持：
 | stock | int | int | 是 | >= 0 |
 | category | string | str | 否 | 类目编码或名称 |
 | image_url | string | str | 是 | 以 http:// 或 https:// 开头 |
+| platform_product_id | — | str/text | 否 | 平台创建成功后写入 |
+| status | — | str | 是 | 固定 draft；DB 默认 draft |
 | updated_at | datetime | datetime | 是 | ISO 8601 带时区 |
 
-- 商品 CSV 不包含 `platform`；导入命令用 `--platform` 指定。
-- v0.1 只创建 `draft`，不发布。
+- 商品 CSV 不包含 `platform` / `platform_product_id` / `status`；`platform` 由导入命令指定，`platform_product_id` 由平台返回，`status` 固定 `draft`。
+- v0.2 只创建 `draft`，不发布。
 - 唯一键：`(platform, sku)`。
 
 ### 3.2 Order（订单头）
@@ -280,7 +282,7 @@ pending → processing → succeeded
 
 ---
 
-## 8. 对账口径（v0.1）
+## 8. 对账口径（v0.2）
 
 - 行级匹配：`(platform, platform_order_id, line_id)`。
 - 订单级兜底：行级未匹配的订单行/账单行按 `(platform, platform_order_id)` 聚合后再比；命中标记 `aggregated_bill`。
@@ -301,7 +303,7 @@ pending → processing → succeeded
 | duplicate_bill | 重复账单键 | 数据质量 |
 | multiple_bills_for_line | 同一订单行多条不同账单 | 人工复核 |
 
-- 手续费率的正确性需要业务规则（费率表），v0.1 不做；v0.1 只校验账单内部一致性和退款金额是否与订单一致。
+- 手续费率的正确性需要业务规则（费率表），v0.2 不做；v0.2 只校验账单内部一致性和退款金额是否与订单一致。
 - 订单级兜底只在同一 `platform_order_id` 下聚合，不做模糊匹配。
 
 ---
@@ -351,3 +353,4 @@ base,quote,rate,effective_date,source
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-10-20 | v0.1 | 初版：订单、订单行、账单、商品、汇率、同步状态 |
+| 2026-10-20 | v0.2 | 商品增加 platform_product_id / status；补充草稿导入口径 |

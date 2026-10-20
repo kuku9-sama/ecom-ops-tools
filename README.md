@@ -7,6 +7,7 @@
 ## 当前能做什么
 
 - 从 CSV 导入订单行到 SQLite（幂等）。
+- 从 CSV 导入商品草稿（校验、字段映射、幂等创建、逐行结果；只建草稿，不发布）。
 - 从内置 Shopee-like 假适配器同步订单（内存数据，不走网络）。
 - 从 Lazada 形状的 HTTP Mock 同步订单（认证、分页、429/5xx/坏 JSON/超时；不验证真实签名）。
 - 用 `report` 查看订单数、订单行数和状态分布。
@@ -42,6 +43,7 @@ python -m venv .venv
 ```bash
 ./.venv/Scripts/python.exe -m ecommerce.cli --help
 ./.venv/Scripts/python.exe -m ecommerce.cli import-orders --csv data/orders.csv --db data/ecommerce.db
+./.venv/Scripts/python.exe -m ecommerce.cli import-products --csv data/products.csv --platform shopee_mock --db data/ecommerce.db
 ./.venv/Scripts/python.exe -m ecommerce.cli sync-orders --platform shopee_mock --since 2026-10-01T00:00:00+00:00 --db data/ecommerce.db
 ./.venv/Scripts/python.exe -m ecommerce.cli report --db data/ecommerce.db
 ```
