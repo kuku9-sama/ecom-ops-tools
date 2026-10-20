@@ -30,3 +30,14 @@ class Order:
     updated_at: datetime
     lines: tuple[OrderLine, ...]
     raw_json: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ProductDraft:
+    sku: str
+    title: str
+    price_minor: int
+    currency: str
+    stock: int
+    category: str
+    image_url: str

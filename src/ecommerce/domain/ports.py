@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
-from ecommerce.domain.models import Order
+from ecommerce.domain.models import Order, ProductDraft
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,3 +21,9 @@ class PlatformPort(Protocol):
     def list_orders(
         self, updated_since: datetime, cursor: str | None
     ) -> Page[Order]: ...
+
+    def create_product_draft(
+        self, draft: ProductDraft, idempotency_key: str
+    ) -> str: ...
+
+    def find_product_by_sku(self, sku: str) -> str | None: ...

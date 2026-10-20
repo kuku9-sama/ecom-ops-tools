@@ -17,9 +17,10 @@ from ecommerce.domain.errors import (
     PermanentError,
     RateLimitError,
     TransientError,
+    ValidationError,
 )
-from ecommerce.domain.models import Order, OrderLine
-from ecommerce.domain.money import parse_amount_to_minor
+from ecommerce.domain.models import Order, OrderLine, ProductDraft
+from ecommerce.domain.money import format_minor, parse_amount_to_minor
 from ecommerce.domain.ports import Page
 
 
@@ -28,12 +29,19 @@ class LazadaAdapter:
 
     platform = "lazada"
 
-    def __init__(self, base_url: str, app_key: str = "mock", page_size: int = 100):
+    def __init__(
+        self,
+        base_url: str,
+        app_key: str = "mock",
+        page_size: int = 100,
+        timeout: tuple[float, float] = (3, 15),
+    ):
         if not 1 <= page_size <= 100:
             raise ValueError("page_size must be between 1 and 100")
         self._base_url = base_url.rstrip("/")
         self._app_key = app_key
         self._page_size = page_size
+        self._timeout = timeout
         self._session = requests.Session()
         # 关掉 requests 自带的隐藏重试，重试统一由 tenacity 控制。
         self._session.mount("http://", HTTPAdapter(max_retries=0))
@@ -48,7 +56,7 @@ class LazadaAdapter:
                     "app_key": self._app_key,
                     "timestamp": int(datetime.now().timestamp()),
                 },
-                timeout=(3, 15),
+                timeout=self._timeout,
             )
             _raise_for_status(resp, "/auth/token/create")
             data = _json_or_parse_error(resp)
@@ -82,7 +90,7 @@ class LazadaAdapter:
         next_cursor = str(next_offset) if orders and next_offset < count else None
         return Page(items=orders, next_cursor=next_cursor)
 
-    def _get(self, path: str, params: dict) -> dict:
+    def _get(self, path: str, params: dict, allow_404: bool = False) -> dict:
         if self._token is None:
             raise AuthError("not authenticated")
 
@@ -94,14 +102,59 @@ class LazadaAdapter:
                     "access_token": self._token,
                     **params,
                 },
-                timeout=(3, 15),
+                timeout=self._timeout,
             )
+            if resp.status_code == 404 and allow_404:
+                return {}
             _raise_for_status(resp, path)
             return _json_or_parse_error(resp)
         except requests.RequestException as exc:
             # 挂了重试适配器后，读超时可能表现为 ConnectionError；
             # 统一捕获父类，避免漏掉。
             raise TransientError(f"GET {path} failed: {exc}") from exc
+
+    def _post(self, path: str, payload: dict) -> dict:
+        if self._token is None:
+            raise AuthError("not authenticated")
+
+        try:
+            resp = self._session.post(
+                f"{self._base_url}/rest{path}",
+                params={"app_key": self._app_key, "access_token": self._token},
+                json=payload,
+                timeout=self._timeout,
+            )
+            _raise_for_product_status(resp, path)
+            return _json_or_parse_error(resp)
+        except requests.RequestException as exc:
+            raise TransientError(f"POST {path} failed: {exc}") from exc
+
+    def create_product_draft(self, draft: ProductDraft, idempotency_key: str) -> str:
+        payload = {
+            "seller_sku": draft.sku,
+            "name": draft.title,
+            "price": format_minor(draft.price_minor, draft.currency),
+            "currency": draft.currency,
+            "quantity": draft.stock,
+            "category": draft.category,
+            "image_url": draft.image_url,
+            "idempotency_key": idempotency_key,
+        }
+        data = self._post("/product/create", payload)
+        payload_data = data.get("data")
+        if not isinstance(payload_data, dict) or not payload_data.get("product_id"):
+            raise ParseError("product create response missing product_id")
+        return str(payload_data["product_id"])
+
+    def find_product_by_sku(self, sku: str) -> str | None:
+        data = get_with_retry(self, "/product/get", {"sku": sku}, allow_404=True)
+        if not data:
+            return None
+        payload_data = data.get("data")
+        if not isinstance(payload_data, dict):
+            raise ParseError("product get response missing data")
+        product_id = payload_data.get("product_id")
+        return str(product_id) if product_id else None
 
 
 def _raise_for_status(resp: requests.Response, path: str) -> None:
@@ -111,6 +164,19 @@ def _raise_for_status(resp: requests.Response, path: str) -> None:
         raise RateLimitError(f"{path} rate limited", _retry_after(resp))
     if resp.status_code >= 500:
         raise TransientError(f"{path} server error {resp.status_code}")
+    if 400 <= resp.status_code < 500:
+        raise PermanentError(f"{path} client error {resp.status_code}")
+
+
+def _raise_for_product_status(resp: requests.Response, path: str) -> None:
+    if resp.status_code in (401, 403):
+        raise AuthError(f"{path} unauthorized")
+    if resp.status_code == 429:
+        raise RateLimitError(f"{path} rate limited", _retry_after(resp))
+    if resp.status_code >= 500:
+        raise TransientError(f"{path} server error {resp.status_code}")
+    if resp.status_code in (400, 422):
+        raise ValidationError(f"{path} validation failed")
     if 400 <= resp.status_code < 500:
         raise PermanentError(f"{path} client error {resp.status_code}")
 
@@ -199,7 +265,9 @@ def _wait(retry_state: RetryCallState) -> float:
     return base + random.uniform(0, 0.5)
 
 
-def get_with_retry(adapter: LazadaAdapter, path: str, params: dict) -> dict:
+def get_with_retry(
+    adapter: LazadaAdapter, path: str, params: dict, allow_404: bool = False
+) -> dict:
     @retry(
         retry=retry_if_exception_type((RateLimitError, TransientError)),
         stop=stop_after_attempt(4),
@@ -207,6 +275,6 @@ def get_with_retry(adapter: LazadaAdapter, path: str, params: dict) -> dict:
         reraise=True,
     )
     def _call() -> dict:
-        return adapter._get(path, params)
+        return adapter._get(path, params, allow_404=allow_404)
 
     return _call()

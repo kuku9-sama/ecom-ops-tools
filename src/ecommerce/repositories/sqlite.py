@@ -1,7 +1,8 @@
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
-from ecommerce.domain.models import Order
+from ecommerce.domain.models import Order, ProductDraft
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
@@ -43,6 +44,23 @@ ON CONFLICT (platform, platform_order_id, line_id) DO UPDATE SET
     discount_minor   = excluded.discount_minor,
     refund_minor     = excluded.refund_minor,
     currency         = excluded.currency
+"""
+
+PRODUCT_UPSERT = """
+INSERT INTO products (
+    platform, sku, title, price_minor, currency, stock, status,
+    category, image_url, platform_product_id, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)
+ON CONFLICT (platform, sku) DO UPDATE SET
+    title               = excluded.title,
+    price_minor         = excluded.price_minor,
+    currency            = excluded.currency,
+    stock               = excluded.stock,
+    status              = excluded.status,
+    category            = excluded.category,
+    image_url           = excluded.image_url,
+    platform_product_id = excluded.platform_product_id,
+    updated_at          = excluded.updated_at
 """
 
 
@@ -92,3 +110,36 @@ class OrderRepository:
             "SELECT status, COUNT(*) AS n FROM orders GROUP BY status ORDER BY status"
         ).fetchall()
         return [(row["status"], row["n"]) for row in rows]
+
+
+class ProductRepository:
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+
+    def upsert(
+        self, platform: str, draft: ProductDraft, platform_product_id: str | None
+    ) -> None:
+        self._conn.execute(PRODUCT_UPSERT, (
+            platform,
+            draft.sku,
+            draft.title,
+            draft.price_minor,
+            draft.currency,
+            draft.stock,
+            draft.category,
+            draft.image_url,
+            platform_product_id,
+            datetime.now(UTC).isoformat(),
+        ))
+
+    def find_platform_id(self, platform: str, sku: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT platform_product_id FROM products WHERE platform = ? AND sku = ?",
+            (platform, sku),
+        ).fetchone()
+        if row is None:
+            return None
+        return row["platform_product_id"]
+
+    def count_products(self) -> int:
+        return self._conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]

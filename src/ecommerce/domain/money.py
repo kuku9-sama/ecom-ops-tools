@@ -46,3 +46,14 @@ def convert_minor(amount_minor: int, rate: Decimal) -> int:
     if rate <= 0:
         raise MoneyError(f"汇率必须大于 0: {rate}")
     return int((Decimal(amount_minor) * rate).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def format_minor(amount_minor: int, currency: str) -> str:
+    """把 129900 变回 '1299.00'，用于发给平台的金额字段。"""
+    digits = MINOR_UNITS[currency]
+    scale = 10 ** digits
+    sign = "-" if amount_minor < 0 else ""
+    whole, frac = divmod(abs(amount_minor), scale)
+    if digits == 0:
+        return f"{sign}{whole}"
+    return f"{sign}{whole}.{frac:0{digits}d}"

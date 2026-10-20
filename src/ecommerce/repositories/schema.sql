@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS products (
     status        TEXT NOT NULL CHECK (status IN ('draft', 'active', 'inactive')),
     category      TEXT,
     image_url     TEXT,
+    platform_product_id TEXT,
     updated_at    TEXT NOT NULL,
     PRIMARY KEY (platform, sku)
 );

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from ecommerce.domain.models import Order, OrderLine
+from ecommerce.domain.models import Order, OrderLine, ProductDraft
 from ecommerce.domain.ports import Page
 
 
@@ -11,6 +11,7 @@ class ShopeeMockAdapter:
 
     def __init__(self) -> None:
         self._authenticated = False
+        self._drafts: dict[str, str] = {}
         self._orders = [
             Order(
                 platform=self.platform,
@@ -68,3 +69,12 @@ class ShopeeMockAdapter:
             order for order in self._orders if order.updated_at >= updated_since
         )
         return Page(items=items, next_cursor=None)
+
+    def create_product_draft(self, draft: ProductDraft, idempotency_key: str) -> str:
+        # 内存适配器用 SKU 做自然键；HTTP 平台才真正需要幂等键。
+        if draft.sku not in self._drafts:
+            self._drafts[draft.sku] = f"draft-{draft.sku}"
+        return self._drafts[draft.sku]
+
+    def find_product_by_sku(self, sku: str) -> str | None:
+        return self._drafts.get(sku)

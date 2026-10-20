@@ -5,11 +5,13 @@ from datetime import datetime
 
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel
 
 app = FastAPI(title="Mock Lazada")
 
 # 故障注入状态：测试通过 POST /mock/fault 设置，消费 times 次后自动恢复。
 FAULT = {"mode": None, "times": 0}
+DRAFTS: dict[str, str] = {}
 
 ORDERS = [
     {
@@ -157,3 +159,44 @@ async def orders_get(
             "limit": limit,
         },
     }
+
+
+class ProductCreate(BaseModel):
+    seller_sku: str
+    name: str
+    price: str
+    currency: str
+    quantity: int
+    category: str | None = None
+    image_url: str
+    idempotency_key: str
+
+
+def _create_draft(payload: ProductCreate) -> str:
+    if payload.seller_sku not in DRAFTS:
+        DRAFTS[payload.seller_sku] = f"P{len(DRAFTS) + 1}"
+    return DRAFTS[payload.seller_sku]
+
+
+@app.post("/rest/product/create")
+async def product_create(payload: ProductCreate):
+    fault = _maybe_fault()
+    if isinstance(fault, dict) and "__sleep__" in fault:
+        # 先落库再睡：模拟“服务端已创建，但客户端超时”。
+        product_id = _create_draft(payload)
+        await asyncio.sleep(fault["__sleep__"])
+        return {"code": "0", "data": {"product_id": product_id}}
+    if fault is not None:
+        return fault
+
+    return {"code": "0", "data": {"product_id": _create_draft(payload)}}
+
+
+@app.get("/rest/product/get")
+def product_get(sku: str):
+    product_id = DRAFTS.get(sku)
+    if product_id is None:
+        return JSONResponse(
+            {"code": "E_NOT_FOUND", "message": "not found"}, status_code=404
+        )
+    return {"code": "0", "data": {"product_id": product_id}}
