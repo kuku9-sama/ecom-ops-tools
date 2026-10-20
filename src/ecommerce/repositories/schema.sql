@@ -85,6 +85,15 @@ CREATE TABLE IF NOT EXISTS sync_runs (
     finished_at    TEXT
 );
 
+-- 断点游标：每页提交后更新；成功后清空，下次从头/水位同步。
+CREATE TABLE IF NOT EXISTS sync_state (
+    platform    TEXT NOT NULL,
+    resource    TEXT NOT NULL,
+    cursor      TEXT,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (platform, resource)
+);
+
 -- 同步逐项状态：支持重试和恢复。
 CREATE TABLE IF NOT EXISTS sync_items (
     run_id         TEXT NOT NULL,

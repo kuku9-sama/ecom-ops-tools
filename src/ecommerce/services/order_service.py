@@ -1,4 +1,5 @@
 import csv
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -7,7 +8,7 @@ from ecommerce.domain.errors import ValidationError
 from ecommerce.domain.models import Order, OrderLine
 from ecommerce.domain.money import MINOR_UNITS, MoneyError, parse_amount_to_minor
 from ecommerce.domain.ports import PlatformPort
-from ecommerce.repositories.sqlite import OrderRepository
+from ecommerce.repositories.sqlite import OrderRepository, SyncRepository
 
 REQUIRED_COLUMNS = (
     "platform", "order_id", "line_id", "sku", "qty", "unit_price",
@@ -29,9 +30,20 @@ class ImportResult:
     updated: int
 
 
+@dataclass(frozen=True, slots=True)
+class SyncResult:
+    run_id: str
+    fetched: int
+    inserted: int
+    updated: int
+
+
 class OrderService:
-    def __init__(self, repo: OrderRepository):
+    def __init__(
+        self, repo: OrderRepository, sync: SyncRepository | None = None
+    ):
         self._repo = repo
+        self._sync = sync
 
     def import_orders(self, orders: list[Order]) -> ImportResult:
         inserted = updated = 0
@@ -42,11 +54,53 @@ class OrderService:
                 updated += 1
         return ImportResult(inserted=inserted, updated=updated)
 
-    def sync_orders(self, platform: PlatformPort, updated_since: datetime) -> ImportResult:
-        platform.authenticate()
-        # Day 7 会在这里加分页和游标；现在先跑通一页。
-        page = platform.list_orders(updated_since, cursor=None)
-        return self.import_orders(list(page.items))
+    def sync_orders(self, platform: PlatformPort, updated_since: datetime) -> SyncResult:
+        if self._sync is None:
+            raise RuntimeError("sync repository is required")
+
+        run_id = str(uuid.uuid4())
+        cursor = self._sync.load_cursor(platform.platform, "orders")
+        self._sync.create_run(run_id, platform.platform, "orders", cursor)
+
+        fetched = inserted = updated = 0
+        try:
+            platform.authenticate()
+            while True:
+                page = platform.list_orders(updated_since, cursor)
+                # 数据、逐项状态、游标必须在同一个事务里提交。
+                with self._sync.transaction():
+                    result = self.import_orders(list(page.items))
+                    for order in page.items:
+                        self._sync.mark_item(
+                            run_id, order.platform_order_id, "succeeded"
+                        )
+                    self._sync.save_cursor(
+                        platform.platform, "orders", page.next_cursor
+                    )
+                    self._sync.save_page(
+                        run_id,
+                        page.next_cursor,
+                        len(page.items),
+                        result.inserted,
+                        result.updated,
+                    )
+                fetched += len(page.items)
+                inserted += result.inserted
+                updated += result.updated
+                cursor = page.next_cursor
+                if cursor is None:
+                    break
+            self._sync.finish_run(run_id, "succeeded")
+        except Exception:
+            self._sync.finish_run(run_id, "failed")
+            raise
+
+        return SyncResult(
+            run_id=run_id,
+            fetched=fetched,
+            inserted=inserted,
+            updated=updated,
+        )
 
 
 def read_orders_csv(path: str | Path) -> tuple[list[Order], list[RowIssue], int]:

@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -17,6 +18,10 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    # 旧本地库可能还没有这个列；这是镜像库，补列即可。
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(products)")}
+    if "platform_product_id" not in columns:
+        conn.execute("ALTER TABLE products ADD COLUMN platform_product_id TEXT")
     conn.commit()
 
 
@@ -143,3 +148,107 @@ class ProductRepository:
 
     def count_products(self) -> int:
         return self._conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]
+
+
+class SyncRepository:
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+
+    @contextmanager
+    def transaction(self):
+        with self._conn:
+            yield
+
+    def create_run(
+        self, run_id: str, platform: str, resource: str, cursor_before: str | None
+    ) -> None:
+        self._conn.execute(
+            "INSERT INTO sync_runs "
+            "(run_id, platform, resource, status, cursor_before, started_at) "
+            "VALUES (?, ?, ?, 'processing', ?, ?)",
+            (run_id, platform, resource, cursor_before, datetime.now(UTC).isoformat()),
+        )
+        self._conn.commit()
+
+    def save_page(
+        self,
+        run_id: str,
+        cursor_after: str | None,
+        fetched: int,
+        inserted: int,
+        updated: int,
+    ) -> None:
+        self._conn.execute(
+            "UPDATE sync_runs SET cursor_after = ?, "
+            "fetched = fetched + ?, inserted = inserted + ?, updated = updated + ? "
+            "WHERE run_id = ?",
+            (cursor_after, fetched, inserted, updated, run_id),
+        )
+
+    def finish_run(self, run_id: str, status: str) -> None:
+        self._conn.execute(
+            "UPDATE sync_runs SET status = ?, finished_at = ? WHERE run_id = ?",
+            (status, datetime.now(UTC).isoformat(), run_id),
+        )
+        self._conn.commit()
+
+    def mark_item(
+        self, run_id: str, item_key: str, status: str, error: str = ""
+    ) -> None:
+        self._conn.execute(
+            "INSERT INTO sync_items (run_id, item_key, status, attempts, last_error) "
+            "VALUES (?, ?, ?, 1, ?) "
+            "ON CONFLICT (run_id, item_key) DO UPDATE SET "
+            "status = excluded.status, "
+            "attempts = sync_items.attempts + 1, "
+            "last_error = excluded.last_error",
+            (run_id, item_key, status, error),
+        )
+
+    def load_cursor(self, platform: str, resource: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT cursor FROM sync_state WHERE platform = ? AND resource = ?",
+            (platform, resource),
+        ).fetchone()
+        return row["cursor"] if row else None
+
+    def save_cursor(self, platform: str, resource: str, cursor: str | None) -> None:
+        self._conn.execute(
+            "INSERT INTO sync_state (platform, resource, cursor, updated_at) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT (platform, resource) DO UPDATE SET "
+            "cursor = excluded.cursor, updated_at = excluded.updated_at",
+            (platform, resource, cursor, datetime.now(UTC).isoformat()),
+        )
+
+    def get_run(self, run_id: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT run_id, platform, resource, status, cursor_before, cursor_after, "
+            "fetched, inserted, updated, failed, started_at, finished_at "
+            "FROM sync_runs WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def latest_run(self, platform: str, resource: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT run_id, platform, resource, status, cursor_before, cursor_after, "
+            "fetched, inserted, updated, failed, started_at, finished_at "
+            "FROM sync_runs WHERE platform = ? AND resource = ? "
+            "ORDER BY started_at DESC LIMIT 1",
+            (platform, resource),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def recent_runs(self, limit: int = 5) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT run_id, platform, resource, status, fetched, inserted, updated, "
+            "started_at FROM sync_runs ORDER BY started_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def item_count(self, run_id: str) -> int:
+        return self._conn.execute(
+            "SELECT COUNT(*) FROM sync_items WHERE run_id = ?", (run_id,)
+        ).fetchone()[0]

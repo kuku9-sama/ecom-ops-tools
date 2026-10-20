@@ -9,6 +9,7 @@ from ecommerce.logging_setup import log_event, setup_logging
 from ecommerce.repositories.sqlite import (
     OrderRepository,
     ProductRepository,
+    SyncRepository,
     connect,
     init_db,
 )
@@ -32,6 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync.add_argument("--platform", default="shopee_mock")
     p_sync.add_argument("--since", required=True, help="ISO 时间，必须带时区")
     p_sync.add_argument("--base-url", default="http://127.0.0.1:8100")
+    p_sync.add_argument("--page-size", type=int, default=100)
     p_sync.add_argument("--db", default="data/ecommerce.db")
 
     p_products = sub.add_parser("import-products", help="从 CSV 创建商品草稿")
@@ -72,10 +74,14 @@ def cmd_import_orders(args: argparse.Namespace) -> int:
 
 
 def cmd_sync_orders(args: argparse.Namespace) -> int:
+    if not 1 <= args.page_size <= 100:
+        print("--page-size 必须在 1–100 之间")
+        return 2
+
     if args.platform == "shopee_mock":
         adapter = ShopeeMockAdapter()
     elif args.platform == "lazada":
-        adapter = LazadaAdapter(args.base_url)
+        adapter = LazadaAdapter(args.base_url, page_size=args.page_size)
     else:
         print(f"unsupported platform: {args.platform}")
         return 2
@@ -92,15 +98,19 @@ def cmd_sync_orders(args: argparse.Namespace) -> int:
     conn = connect(args.db)
     try:
         init_db(conn)
-        with conn:
-            result = OrderService(OrderRepository(conn)).sync_orders(adapter, since)
+        result = OrderService(
+            OrderRepository(conn), SyncRepository(conn)
+        ).sync_orders(adapter, since)
     except EcommerceError as exc:
         print(f"sync failed: {exc}")
         return 1
     finally:
         conn.close()
 
-    print(f"inserted={result.inserted} updated={result.updated}")
+    print(
+        f"run_id={result.run_id} fetched={result.fetched} "
+        f"inserted={result.inserted} updated={result.updated}"
+    )
     return 0
 
 
@@ -163,12 +173,19 @@ def cmd_report(args: argparse.Namespace) -> int:
         lines = repo.count_order_lines()
         products = ProductRepository(conn).count_products()
         statuses = repo.status_counts()
+        runs = SyncRepository(conn).recent_runs(5)
     finally:
         conn.close()
 
     print(f"orders={orders} order_lines={lines} products={products}")
     for status, count in statuses:
         print(f"  status={status} count={count}")
+    for run in runs:
+        print(
+            f"  run={run['run_id'][:8]} platform={run['platform']} "
+            f"status={run['status']} fetched={run['fetched']} "
+            f"inserted={run['inserted']} updated={run['updated']}"
+        )
     return 0
 
 
