@@ -1,0 +1,6 @@
+sku,title,price,currency,stock,category,image_url
+MON-001,27 inch 2K monitor,1299.00,CNY,20,Monitors,https://example.com/img/mon-001.jpg
+,Mechanical keyboard,199.00,CNY,50,Keyboards,https://example.com/img/kb-002.jpg
+ACC-001,Mouse pad,-10.00,CNY,100,Accessories,https://example.com/img/acc-001.jpg
+ACC-002,"27 inch 2K monitor with adjustable stand and HDMI input 27 inch 2K monitor with adjustable stand and HDMI input 27 inch 2K monitor with adjustable stand and HDMI input 27 inch 2K monitor with adjustable stand and HDMI input",59.00,CNY,30,Accessories,https://example.com/img/acc-002.jpg
+USB-001,USB-C hub,25.00,CNY,10,Accessories,not-a-url

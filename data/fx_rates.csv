@@ -1,0 +1,7 @@
+base,quote,rate,effective_date,source
+USD,CNY,7.2500,2026-10-01,manual
+USD,CNY,7.2500,2026-10-05,manual
+USD,CNY,7.2600,2026-10-15,manual
+SGD,CNY,5.3800,2026-10-01,manual
+USD,CNY,abc,2026-10-20,manual
+USD,CNY,7.2500,2026-10-05,manual
