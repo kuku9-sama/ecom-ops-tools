@@ -11,12 +11,13 @@
 - 从内置 Shopee-like 假适配器同步订单（内存数据，不走网络）。
 - 从 Lazada 形状的 HTTP Mock 同步订单（认证、分页、429/5xx/坏 JSON/超时；不验证真实签名）。
 - 订单同步支持分页、游标和断点恢复；每页数据与游标同一事务提交。
+- 按订单行核对账单：多币种、汇率舍入、重复账单、退款/金额差异；输出逐行差异 CSV。
 - 用 `report` 查看订单数、订单行数和状态分布。
 
 ## 计划中
 
+- 订单级对账兜底（平台按订单汇总出账）。
 - 对比平台库存和本地库存。
-- 按订单行核对账单，包含手续费、退款、汇率和舍入。
 - 本地看板（FastAPI 薄层）。
 
 ## 不做什么
@@ -46,6 +47,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe -m ecommerce.cli import-orders --csv data/orders.csv --db data/ecommerce.db
 ./.venv/Scripts/python.exe -m ecommerce.cli import-products --csv data/products.csv --platform shopee_mock --db data/ecommerce.db
 ./.venv/Scripts/python.exe -m ecommerce.cli sync-orders --platform shopee_mock --since 2026-10-01T00:00:00+00:00 --db data/ecommerce.db
+./.venv/Scripts/python.exe -m ecommerce.cli reconcile --orders data/orders.csv --bills data/bills.csv --fx data/fx_rates.csv --out outputs/reconciliation.csv
 ./.venv/Scripts/python.exe -m ecommerce.cli report --db data/ecommerce.db
 ```
 

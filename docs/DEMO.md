@@ -32,7 +32,7 @@ rm -f data/demo_orders.db
 预期：
 
 ```text
-fetched=20 valid_orders=7 valid_lines=10 issues=8 inserted=7 updated=0
+fetched=21 valid_orders=8 valid_lines=11 issues=8 inserted=8 updated=0
 ```
 
 再跑一次：
@@ -44,12 +44,12 @@ fetched=20 valid_orders=7 valid_lines=10 issues=8 inserted=7 updated=0
 预期：
 
 ```text
-fetched=20 valid_orders=7 valid_lines=10 issues=8 inserted=0 updated=7
+fetched=21 valid_orders=8 valid_lines=11 issues=8 inserted=0 updated=8
 ```
 
 讲解点：
 
-- 20 行里 7 个订单、10 条订单行合法；8 条 issue 对应坏日期、空 SKU、qty=0、负单价、未知币种、订单级字段不一致、同键冲突、完全重复行。
+- 21 行里 8 个订单、11 条订单行合法；8 条 issue 对应坏日期、空 SKU、qty=0、负单价、未知币种、订单级字段不一致、同键冲突、完全重复行。
 - 第二次 `inserted=0`，行数不变：自然键 + 唯一约束 + upsert。
 
 ---
@@ -153,7 +153,39 @@ Lazada 版本（可选，Mock 在跑）：
 
 ---
 
-## 5. 报告与测试
+## 5. 多币种行级对账
+
+```bash
+./.venv/Scripts/python.exe -m ecommerce.cli reconcile --orders data/orders.csv --bills data/bills.csv --fx data/fx_rates.csv --out outputs/reconciliation.csv
+```
+
+预期：
+
+```text
+orders=8 order_lines=11 bills=13 rows=16 wrote=outputs/reconciliation.csv
+issues: orders=8 bills=1 fx=2
+  amount_mismatch=1
+  bill_inconsistent=1
+  duplicate_bill=1
+  fx_missing=1
+  fx_or_rounding_diff=1
+  matched=1
+  missing_order=5
+  multiple_bills_for_line=1
+  orphan_bill=3
+  refund_mismatch=1
+```
+
+讲解点：
+
+- 重复账单键、同一订单行多账单先排除，不静默合并。
+- 同币种汇率 = 1；结算日优先，订单日回退，缺失报 `fx_missing`。
+- 先校验账单自洽，再比较金额；差异按容差分类。
+- 订单级聚合账单和订单级兜底在下一步做。
+
+---
+
+## 6. 报告与测试
 
 ```bash
 ./.venv/Scripts/python.exe -m ecommerce.cli report --db data/demo_sync.db
@@ -170,13 +202,13 @@ orders=5 order_lines=5 products=0
   run=<...> platform=lazada status=succeeded fetched=3 ...
   run=<...> platform=shopee_mock status=succeeded fetched=2 ...
 
-37 passed
+43 passed
 All checks passed
 ```
 
 ---
 
-## 6. Swagger 页面
+## 7. Swagger 页面
 
 浏览器打开 <http://127.0.0.1:8100/docs>。
 
@@ -192,23 +224,24 @@ All checks passed
 
 ---
 
-## 7. 三分钟讲解顺序
+## 8. 三分钟讲解顺序
 
 | 时间 | 内容 | 说什么 |
 |---|---|---|
 | 0:00–0:20 | 问题 | 多平台重复劳动、漏单/重单、对账不可追溯 |
 | 0:20–0:50 | 架构 | CLI → 服务层 → Port ← 适配器 → Mock/SQLite |
-| 0:50–1:40 | 订单导入 | 20 行脏数据、7 个合法订单、第二次 0 新增 |
-| 1:40–2:20 | 平台同步 | 同一服务换 Shopee/Lazada 适配器；分页 + 断点 |
-| 2:20–2:50 | 商品草稿 | 只建草稿；单行失败不影响整批；超时回查 |
-| 2:50–3:00 | 证据与限制 | 39 个测试；Mock 不是真实接入；对账/库存还没做 |
+| 0:50–1:30 | 订单导入 | 21 行脏数据、8 个合法订单、第二次 0 新增 |
+| 1:30–2:10 | 平台同步 | 同一服务换 Shopee/Lazada 适配器；分页 + 断点 |
+| 2:10–2:40 | 商品草稿 | 只建草稿；单行失败不影响整批；超时回查 |
+| 2:40–2:55 | 行级对账 | 重复账单、汇率缺失、退款/金额差异 |
+| 2:55–3:00 | 证据与限制 | 43 个测试；Mock 不是真实接入；订单级兜底/库存还没做 |
 
 ---
 
-## 8. 边界与已知限制
+## 9. 边界与已知限制
 
 - 平台是本地 Mock，没有真实账号；Lazada 签名、QPS、Finance 端点未验证。
-- 订单同步覆盖分页、游标和断点恢复；库存比对、多币种对账、本地看板还没做。
+- 订单同步覆盖分页、游标和断点恢复；行级对账已覆盖，订单级兜底、库存比对、本地看板还没做。
 - 商品只创建草稿，不发布。
 - 不自动退款、改价、写回库存。
 - 数据是合成的，不含真实客户信息。
