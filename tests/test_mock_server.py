@@ -1,14 +1,15 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from mock_server.app import FAULT, app
+from mock_server.app import DRAFTS, FAULT, app
 
 client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def reset_fault():
+def reset_state():
     FAULT.update(mode=None, times=0)
+    DRAFTS.clear()
     yield
 
 
@@ -68,3 +69,36 @@ def test_fault_bad_json():
 
     assert resp.status_code == 200
     assert resp.text == "not json{"
+
+
+PRODUCT_PAYLOAD = {
+    "seller_sku": "MON-001",
+    "name": "27 inch monitor",
+    "price": "1299.00",
+    "currency": "CNY",
+    "quantity": 20,
+    "category": "Monitors",
+    "image_url": "https://example.com/mon.jpg",
+    "idempotency_key": "key",
+}
+
+
+def test_product_create_is_idempotent():
+    first = client.post("/rest/product/create", json=PRODUCT_PAYLOAD)
+    second = client.post("/rest/product/create", json=PRODUCT_PAYLOAD)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["data"]["product_id"] == second.json()["data"]["product_id"]
+
+
+def test_product_get():
+    created = client.post("/rest/product/create", json=PRODUCT_PAYLOAD)
+    product_id = created.json()["data"]["product_id"]
+
+    found = client.get("/rest/product/get", params={"sku": "MON-001"})
+    missing = client.get("/rest/product/get", params={"sku": "NOPE"})
+
+    assert found.status_code == 200
+    assert found.json()["data"]["product_id"] == product_id
+    assert missing.status_code == 404

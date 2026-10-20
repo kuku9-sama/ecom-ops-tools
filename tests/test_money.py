@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from ecommerce.domain.money import convert_minor, parse_amount_to_minor
+from ecommerce.domain.money import convert_minor, format_minor, parse_amount_to_minor
 
 
 def test_parse_amount_with_symbol_and_comma():
@@ -19,3 +19,9 @@ def test_zero_decimal_currency():
 def test_convert_rounds_half_up():
     assert convert_minor(1550, Decimal("7.25")) == 11238
     assert convert_minor(123450, Decimal("0.14")) == 17283
+
+
+def test_format_minor():
+    assert format_minor(123450, "CNY") == "1234.50"
+    assert format_minor(123450, "IDR") == "123450"
+    assert format_minor(-123450, "CNY") == "-1234.50"
