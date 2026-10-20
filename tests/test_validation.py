@@ -9,8 +9,8 @@ DATA = Path(__file__).resolve().parents[1] / "data" / "orders.csv"
 def test_invalid_rows_are_reported_not_imported(db):
     orders, issues, fetched = read_orders_csv(DATA)
 
-    assert fetched == 20
-    assert len(orders) == 7
+    assert fetched == 21
+    assert len(orders) == 8
     assert len(issues) == 8
 
     messages = [issue.message for issue in issues]
@@ -22,4 +22,4 @@ def test_invalid_rows_are_reported_not_imported(db):
     with db:
         OrderService(OrderRepository(db)).import_orders(orders)
 
-    assert OrderRepository(db).count_orders() == 7
+    assert OrderRepository(db).count_orders() == 8
