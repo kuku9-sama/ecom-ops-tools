@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,3 +41,21 @@ class ProductDraft:
     stock: int
     category: str
     image_url: str
+
+
+@dataclass(frozen=True, slots=True)
+class BillLine:
+    platform: str
+    bill_id: str
+    platform_order_id: str
+    line_id: str
+    settlement_currency: str
+    gross_minor: int
+    fee_minor: int
+    refund_minor: int
+    net_minor: int
+    settled_at: date
+
+    @property
+    def is_internally_consistent(self) -> bool:
+        return self.net_minor == self.gross_minor - self.fee_minor - self.refund_minor

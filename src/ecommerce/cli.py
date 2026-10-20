@@ -1,5 +1,8 @@
 import argparse
+import csv
+from dataclasses import asdict
 from datetime import datetime
+from pathlib import Path
 
 from ecommerce import __version__
 from ecommerce.adapters.lazada import LazadaAdapter
@@ -15,6 +18,12 @@ from ecommerce.repositories.sqlite import (
 )
 from ecommerce.services.order_service import OrderService, read_orders_csv
 from ecommerce.services.product_service import ProductService, read_products_csv
+from ecommerce.services.reconciliation_service import (
+    ReconRow,
+    read_bills_csv,
+    read_fx_csv,
+    reconcile,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,6 +50,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_products.add_argument("--platform", default="shopee_mock")
     p_products.add_argument("--base-url", default="http://127.0.0.1:8100")
     p_products.add_argument("--db", default="data/ecommerce.db")
+
+    p_reconcile = sub.add_parser("reconcile", help="按订单行核对账单")
+    p_reconcile.add_argument("--orders", default="data/orders.csv")
+    p_reconcile.add_argument("--bills", default="data/bills.csv")
+    p_reconcile.add_argument("--fx", default="data/fx_rates.csv")
+    p_reconcile.add_argument("--out", default="outputs/reconciliation.csv")
 
     return parser
 
@@ -164,6 +179,41 @@ def cmd_import_products(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reconcile(args: argparse.Namespace) -> int:
+    orders, order_issues, _ = read_orders_csv(args.orders)
+    bills, bill_issues, duplicate_keys = read_bills_csv(args.bills)
+    fx, fx_issues = read_fx_csv(args.fx)
+
+    result = reconcile(orders, bills, fx, duplicate_keys)
+
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    field_names = list(ReconRow.__dataclass_fields__)
+    with out_path.open("w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=field_names)
+        writer.writeheader()
+        for row in result.rows:
+            writer.writerow(asdict(row))
+
+    for issue in order_issues:
+        log_event("recon_issue", source="orders", row=issue.row_number,
+                  field=issue.field, message=issue.message)
+    for issue in bill_issues + fx_issues:
+        log_event("recon_issue", source=issue.source, row=issue.row_number,
+                  field=issue.field, message=issue.message)
+
+    print(
+        f"orders={len(orders)} order_lines={sum(len(o.lines) for o in orders)} "
+        f"bills={len(bills)} rows={len(result.rows)} wrote={out_path}"
+    )
+    print(
+        f"issues: orders={len(order_issues)} bills={len(bill_issues)} fx={len(fx_issues)}"
+    )
+    for category, count in sorted(result.counts.items()):
+        print(f"  {category}={count}")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     conn = connect(args.db)
     try:
@@ -198,6 +248,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_sync_orders(args)
     if args.command == "import-products":
         return cmd_import_products(args)
+    if args.command == "reconcile":
+        return cmd_reconcile(args)
     if args.command == "report":
         return cmd_report(args)
     return 2
