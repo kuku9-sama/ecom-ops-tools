@@ -7,11 +7,13 @@
 ## 当前能做什么
 
 - 从 CSV 导入订单行到 SQLite（幂等）。
+- 从内置 Shopee-like 假适配器同步订单（内存数据，不走网络）。
+- 从 Lazada 形状的 HTTP Mock 同步订单（认证、分页、429/5xx/坏 JSON/超时；不验证真实签名）。
 - 用 `report` 查看订单数、订单行数和状态分布。
 
 ## 计划中
 
-- 从 Mock 平台适配器同步订单。
+- 完整分页和断点恢复（现在只同步一页）。
 - 对比平台库存和本地库存。
 - 按订单行核对账单，包含手续费、退款、汇率和舍入。
 
@@ -40,7 +42,20 @@ python -m venv .venv
 ```bash
 ./.venv/Scripts/python.exe -m ecommerce.cli --help
 ./.venv/Scripts/python.exe -m ecommerce.cli import-orders --csv data/orders.csv --db data/ecommerce.db
+./.venv/Scripts/python.exe -m ecommerce.cli sync-orders --platform shopee_mock --since 2026-10-01T00:00:00+00:00 --db data/ecommerce.db
 ./.venv/Scripts/python.exe -m ecommerce.cli report --db data/ecommerce.db
+```
+
+Lazada 形状的 HTTP Mock 需要先在一个终端启动服务：
+
+```bash
+./.venv/Scripts/python.exe -m uvicorn mock_server.app:app --host 127.0.0.1 --port 8100
+```
+
+然后在另一个终端同步：
+
+```bash
+./.venv/Scripts/python.exe -m ecommerce.cli sync-orders --platform lazada --since 2026-10-01T00:00:00+00:00 --base-url http://127.0.0.1:8100 --db data/ecommerce.db
 ```
 
 更多命令随着链路补上。
@@ -56,3 +71,4 @@ python -m venv .venv
 
 - 数据是合成的，不含真实客户信息。
 - `data/README.md` 记录了每个脏数据用例的预期行为。
+- Lazada Mock 不验证真实签名，不代表真实平台接入。

@@ -1,6 +1,10 @@
 import argparse
+from datetime import datetime
 
 from ecommerce import __version__
+from ecommerce.adapters.lazada import LazadaAdapter
+from ecommerce.adapters.shopee_mock import ShopeeMockAdapter
+from ecommerce.domain.errors import EcommerceError
 from ecommerce.logging_setup import log_event, setup_logging
 from ecommerce.repositories.sqlite import OrderRepository, connect, init_db
 from ecommerce.services.order_service import OrderService, read_orders_csv
@@ -17,6 +21,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_report = sub.add_parser("report", help="打印数据库摘要")
     p_report.add_argument("--db", default="data/ecommerce.db")
+
+    p_sync = sub.add_parser("sync-orders", help="从假适配器或 HTTP Mock 同步订单")
+    p_sync.add_argument("--platform", default="shopee_mock")
+    p_sync.add_argument("--since", required=True, help="ISO 时间，必须带时区")
+    p_sync.add_argument("--base-url", default="http://127.0.0.1:8100")
+    p_sync.add_argument("--db", default="data/ecommerce.db")
 
     return parser
 
@@ -49,6 +59,39 @@ def cmd_import_orders(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sync_orders(args: argparse.Namespace) -> int:
+    if args.platform == "shopee_mock":
+        adapter = ShopeeMockAdapter()
+    elif args.platform == "lazada":
+        adapter = LazadaAdapter(args.base_url)
+    else:
+        print(f"unsupported platform: {args.platform}")
+        return 2
+
+    try:
+        since = datetime.fromisoformat(args.since)
+    except ValueError:
+        print("--since 不是合法 ISO 时间")
+        return 2
+    if since.tzinfo is None:
+        print("--since 必须带时区，例如 2026-10-01T00:00:00+00:00")
+        return 2
+
+    conn = connect(args.db)
+    try:
+        init_db(conn)
+        with conn:
+            result = OrderService(OrderRepository(conn)).sync_orders(adapter, since)
+    except EcommerceError as exc:
+        print(f"sync failed: {exc}")
+        return 1
+    finally:
+        conn.close()
+
+    print(f"inserted={result.inserted} updated={result.updated}")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     conn = connect(args.db)
     try:
@@ -71,6 +114,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "import-orders":
         return cmd_import_orders(args)
+    if args.command == "sync-orders":
+        return cmd_sync_orders(args)
     if args.command == "report":
         return cmd_report(args)
     return 2

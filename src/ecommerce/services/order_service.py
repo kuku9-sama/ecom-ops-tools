@@ -6,6 +6,7 @@ from pathlib import Path
 from ecommerce.domain.errors import ValidationError
 from ecommerce.domain.models import Order, OrderLine
 from ecommerce.domain.money import MINOR_UNITS, MoneyError, parse_amount_to_minor
+from ecommerce.domain.ports import PlatformPort
 from ecommerce.repositories.sqlite import OrderRepository
 
 REQUIRED_COLUMNS = (
@@ -40,6 +41,12 @@ class OrderService:
             else:
                 updated += 1
         return ImportResult(inserted=inserted, updated=updated)
+
+    def sync_orders(self, platform: PlatformPort, updated_since: datetime) -> ImportResult:
+        platform.authenticate()
+        # Day 7 会在这里加分页和游标；现在先跑通一页。
+        page = platform.list_orders(updated_since, cursor=None)
+        return self.import_orders(list(page.items))
 
 
 def read_orders_csv(path: str | Path) -> tuple[list[Order], list[RowIssue], int]:
