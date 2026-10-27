@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+
+from ecommerce.domain.errors import ValidationError
 from ecommerce.repositories.sqlite import OrderRepository
 from ecommerce.services.order_service import OrderService, read_orders_csv
 
@@ -23,3 +26,11 @@ def test_invalid_rows_are_reported_not_imported(db):
         OrderService(OrderRepository(db)).import_orders(orders)
 
     assert OrderRepository(db).count_orders() == 8
+
+
+def test_missing_column_raises(tmp_path):
+    path = tmp_path / "bad.csv"
+    path.write_text("platform,order_id\nshopee_mock,O1\n", encoding="utf-8")
+
+    with pytest.raises(ValidationError):
+        read_orders_csv(path)

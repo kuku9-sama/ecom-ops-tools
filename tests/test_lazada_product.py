@@ -5,7 +5,11 @@ import requests
 import responses
 
 from ecommerce.adapters.lazada import LazadaAdapter
-from ecommerce.domain.errors import TransientError, ValidationError
+from ecommerce.domain.errors import (
+    RateLimitError,
+    TransientError,
+    ValidationError,
+)
 from ecommerce.domain.models import ProductDraft
 
 BASE = "https://mock.lazada"
@@ -90,3 +94,17 @@ def test_create_timeout_raises_transient_error():
 
     with pytest.raises(TransientError):
         adapter.create_product_draft(DRAFT, "key")
+
+
+@responses.activate
+def test_create_rate_limit_is_not_retried():
+    adapter = _adapter()
+    responses.add(
+        responses.POST, CREATE_URL, status=429, headers={"Retry-After": "0"}
+    )
+
+    with pytest.raises(RateLimitError):
+        adapter.create_product_draft(DRAFT, "key")
+
+    create_calls = [c for c in responses.calls if "product/create" in c.request.url]
+    assert len(create_calls) == 1

@@ -112,3 +112,19 @@ def test_timeout_then_find_avoids_duplicate(tmp_path, db):
 def test_idempotency_key_depends_on_platform_and_sku():
     assert idempotency_key("lazada", "X") == idempotency_key("lazada", "X")
     assert idempotency_key("lazada", "X") != idempotency_key("shopee_mock", "X")
+
+
+def test_duplicate_sku_reported(tmp_path):
+    path = tmp_path / "dup.csv"
+    path.write_text(
+        "sku,title,price,currency,stock,category,image_url\n"
+        "DUP-001,First,10.00,CNY,1,Test,https://example.com/a.jpg\n"
+        "DUP-001,Second,10.00,CNY,1,Test,https://example.com/b.jpg\n",
+        encoding="utf-8",
+    )
+
+    items, issues = read_products_csv(path)
+
+    assert len(items) == 1
+    assert len(issues) == 1
+    assert "SKU 重复" in issues[0].message
