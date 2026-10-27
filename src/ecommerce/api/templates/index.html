@@ -14,6 +14,8 @@
     th, td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; font-size: 14px; }
     section { margin-top: 24px; }
     code { background: #f5f5f5; padding: 2px 4px; border-radius: 4px; }
+    tr.failed td { color: #b00020; }
+    td.num { text-align: right; }
   </style>
 </head>
 <body>
@@ -30,15 +32,15 @@
     <h2>最近同步</h2>
     {% if runs %}
     <table>
-      <tr><th>run</th><th>平台</th><th>状态</th><th>抓取</th><th>新增</th><th>更新</th><th>开始</th></tr>
+      <tr><th>run</th><th>平台</th><th>状态</th><th class="num">抓取</th><th class="num">新增</th><th class="num">更新</th><th>开始</th></tr>
       {% for run in runs %}
-      <tr>
+      <tr class="{{ 'failed' if run.status == 'failed' else '' }}">
         <td><code>{{ run.run_id[:8] }}</code></td>
         <td>{{ run.platform }}</td>
         <td>{{ run.status }}</td>
-        <td>{{ run.fetched }}</td>
-        <td>{{ run.inserted }}</td>
-        <td>{{ run.updated }}</td>
+        <td class="num">{{ run.fetched }}</td>
+        <td class="num">{{ run.inserted }}</td>
+        <td class="num">{{ run.updated }}</td>
         <td>{{ run.started_at }}</td>
       </tr>
       {% endfor %}
@@ -52,11 +54,18 @@
     <h2>对账汇总</h2>
     {% if recon %}
     <p>结果行：{{ recon.rows }}</p>
-    <ul>
-      {% for category, count in recon.counts.items() %}
-      <li>{{ category }}：{{ count }}</li>
+    <table>
+      <tr><th>分类</th><th class="num">数量</th></tr>
+      {% for row in recon_rows %}
+      <tr><td>{{ row.label }}</td><td class="num">{{ row.count }}</td></tr>
       {% endfor %}
-    </ul>
+    </table>
+    <p class="muted">
+      金额合计（最小货币单位原始求和，混合币种，仅参考）：
+      期望 {{ recon.totals.expected_minor }}，
+      实际 {{ recon.totals.actual_minor }}，
+      差额 {{ recon.totals.diff_minor }}
+    </p>
     {% else %}
     <p class="muted">暂无对账结果。先跑 <code>ecommerce.cli reconcile</code>。</p>
     {% endif %}
@@ -64,8 +73,20 @@
 
   <section>
     <h2>库存差异</h2>
-    {% if inventory_count %}
-    <p>差异行：{{ inventory_count }}</p>
+    {% if inventory_rows %}
+    <table>
+      <tr><th>平台</th><th>SKU</th><th class="num">平台库存</th><th class="num">本地库存</th><th class="num">差异</th><th>分类</th></tr>
+      {% for row in inventory_rows %}
+      <tr>
+        <td>{{ row.platform }}</td>
+        <td>{{ row.sku }}</td>
+        <td class="num">{{ row.platform_stock }}</td>
+        <td class="num">{{ row.local_stock or "—" }}</td>
+        <td class="num">{{ row.diff or "—" }}</td>
+        <td>{{ row.category_label }}</td>
+      </tr>
+      {% endfor %}
+    </table>
     {% else %}
     <p class="muted">暂无库存差异。先跑 <code>ecommerce.cli inventory</code>。</p>
     {% endif %}

@@ -17,6 +17,25 @@ app = FastAPI(
 )
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
+CATEGORY_LABELS = {
+    "matched": "已匹配",
+    "amount_mismatch": "金额不符",
+    "refund_mismatch": "退款不符",
+    "fx_missing": "缺汇率",
+    "fx_or_rounding_diff": "汇率或舍入差异",
+    "duplicate_bill": "重复账单",
+    "multiple_bills_for_line": "同一行多账单",
+    "bill_inconsistent": "账单内部不一致",
+    "missing_order": "缺订单",
+    "orphan_bill": "孤立账单",
+    "aggregated_bill": "聚合账单（订单级兜底）",
+}
+
+INVENTORY_LABELS = {
+    "mismatch": "库存不一致",
+    "missing_locally": "本地缺失",
+}
+
 
 def get_conn():
     conn = connect(os.environ.get("ECOMMERCE_DB", "data/ecommerce.db"))
@@ -89,6 +108,28 @@ def index(
     order_count = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
     line_count = conn.execute("SELECT COUNT(*) FROM order_lines").fetchone()[0]
     product_count = conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]
+
+    recon = _load_summary()
+    recon_rows = []
+    if recon:
+        recon_rows = sorted(
+            (
+                {
+                    "key": key,
+                    "label": CATEGORY_LABELS.get(key, key),
+                    "count": count,
+                }
+                for key, count in recon["counts"].items()
+            ),
+            key=lambda row: (row["key"] == "matched", -row["count"], row["key"]),
+        )
+
+    inventory_rows = _load_inventory_rows()
+    for row in inventory_rows:
+        row["category_label"] = INVENTORY_LABELS.get(
+            row["category"], row["category"]
+        )
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -97,7 +138,8 @@ def index(
             "line_count": line_count,
             "product_count": product_count,
             "runs": SyncRepository(conn).recent_runs(5),
-            "recon": _load_summary(),
-            "inventory_count": len(_load_inventory_rows()),
+            "recon": recon,
+            "recon_rows": recon_rows,
+            "inventory_rows": inventory_rows,
         },
     )
