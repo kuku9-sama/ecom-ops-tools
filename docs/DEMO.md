@@ -162,17 +162,20 @@ Lazada 版本（可选，Mock 在跑）：
 预期：
 
 ```text
-orders=8 order_lines=11 bills=13 rows=16 wrote=outputs/reconciliation.csv
+orders=8 order_lines=11 bills=13 rows=13
 issues: orders=8 bills=1 fx=2
+wrote=outputs/reconciliation.csv summary=outputs/reconciliation_summary.json
+unmatched=outputs/unmatched.csv data_quality=outputs/data_quality.csv
+  aggregated_bill=2
   amount_mismatch=1
   bill_inconsistent=1
   duplicate_bill=1
   fx_missing=1
   fx_or_rounding_diff=1
   matched=1
-  missing_order=5
+  missing_order=2
   multiple_bills_for_line=1
-  orphan_bill=3
+  orphan_bill=1
   refund_mismatch=1
 ```
 
@@ -181,7 +184,8 @@ issues: orders=8 bills=1 fx=2
 - 重复账单键、同一订单行多账单先排除，不静默合并。
 - 同币种汇率 = 1；结算日优先，订单日回退，缺失报 `fx_missing`。
 - 先校验账单自洽，再比较金额；差异按容差分类。
-- 订单级聚合账单和订单级兜底在下一步做。
+- O1011/B007、O1012/B008 行级没对上，但订单级金额能对上，标记 `aggregated_bill`。
+- 输出四份文件：逐行差异、汇总 JSON、未匹配清单、数据质量清单。
 
 ---
 
@@ -202,7 +206,7 @@ orders=5 order_lines=5 products=0
   run=<...> platform=lazada status=succeeded fetched=3 ...
   run=<...> platform=shopee_mock status=succeeded fetched=2 ...
 
-43 passed
+45 passed
 All checks passed
 ```
 
@@ -233,7 +237,7 @@ All checks passed
 | 0:50–1:30 | 订单导入 | 21 行脏数据、8 个合法订单、第二次 0 新增 |
 | 1:30–2:10 | 平台同步 | 同一服务换 Shopee/Lazada 适配器；分页 + 断点 |
 | 2:10–2:40 | 商品草稿 | 只建草稿；单行失败不影响整批；超时回查 |
-| 2:40–2:55 | 行级对账 | 重复账单、汇率缺失、退款/金额差异 |
+| 2:40–2:55 | 行级/订单级对账 | 重复账单、汇率缺失、聚合账单兜底 |
 | 2:55–3:00 | 证据与限制 | 43 个测试；Mock 不是真实接入；订单级兜底/库存还没做 |
 
 ---
@@ -241,7 +245,7 @@ All checks passed
 ## 9. 边界与已知限制
 
 - 平台是本地 Mock，没有真实账号；Lazada 签名、QPS、Finance 端点未验证。
-- 订单同步覆盖分页、游标和断点恢复；行级对账已覆盖，订单级兜底、库存比对、本地看板还没做。
+- 订单同步覆盖分页、游标和断点恢复；对账覆盖行级和订单级兜底；库存比对、本地看板还没做。
 - 商品只创建草稿，不发布。
 - 不自动退款、改价、写回库存。
 - 数据是合成的，不含真实客户信息。
