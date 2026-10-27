@@ -8,6 +8,7 @@ from pathlib import Path
 import requests
 
 from ecommerce.cli import (
+    cmd_extract,
     cmd_import_orders,
     cmd_import_products,
     cmd_inventory,
@@ -108,6 +109,14 @@ def main() -> int:
                 csv=str(DATA / "products.csv"),
                 platform="shopee_mock",
                 base_url=base_url,
+                db=str(db_path),
+            )
+        ))
+        _run("结构化提取", cmd_extract(
+            Namespace(
+                input=str(DATA / "raw_products.jsonl"),
+                provider="mock",
+                out=str(OUTPUTS / "extracted_products.csv"),
                 db=str(db_path),
             )
         ))

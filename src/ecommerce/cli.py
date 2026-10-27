@@ -7,18 +7,23 @@ from datetime import datetime
 from pathlib import Path
 
 from ecommerce import __version__
+from ecommerce.adapters.deepseek_extractor import DeepSeekExtractor
 from ecommerce.adapters.lazada import LazadaAdapter
+from ecommerce.adapters.mock_extractor import MockExtractor
 from ecommerce.adapters.shopee_mock import ShopeeMockAdapter
+from ecommerce.config import Settings
 from ecommerce.domain.errors import EcommerceError
 from ecommerce.domain.models import InventoryDiff
 from ecommerce.logging_setup import log_event, setup_logging
 from ecommerce.repositories.sqlite import (
+    ExtractionRepository,
     OrderRepository,
     ProductRepository,
     SyncRepository,
     connect,
     init_db,
 )
+from ecommerce.services.extraction_service import ExtractionService, read_jsonl
 from ecommerce.services.inventory_service import InventoryService, read_local_stock_csv
 from ecommerce.services.order_service import OrderService, read_orders_csv
 from ecommerce.services.product_service import ProductService, read_products_csv
@@ -73,6 +78,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve = sub.add_parser("serve", help="启动本地看板")
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8000)
+
+    p_extract = sub.add_parser("extract", help="从文本提取商品草稿")
+    p_extract.add_argument("--input", default="data/raw_products.jsonl")
+    p_extract.add_argument("--provider", default="mock", choices=["mock", "deepseek"])
+    p_extract.add_argument("--out", default="outputs/extracted_products.csv")
+    p_extract.add_argument("--db", default="data/ecommerce.db")
 
     return parser
 
@@ -228,6 +239,63 @@ def cmd_inventory(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_extract(args: argparse.Namespace) -> int:
+    try:
+        texts = read_jsonl(args.input)
+    except ValueError as exc:
+        print(f"extract failed: {exc}")
+        return 1
+
+    if args.provider == "mock":
+        extractor = MockExtractor()
+    else:
+        settings = Settings()
+        try:
+            extractor = DeepSeekExtractor(
+                settings.deepseek_api_key,
+                settings.deepseek_base_url,
+                settings.deepseek_model,
+            )
+        except ValueError as exc:
+            print(f"extract failed: {exc}")
+            return 1
+
+    conn = connect(args.db)
+    try:
+        init_db(conn)
+        service = ExtractionService(extractor, ExtractionRepository(conn))
+        with conn:
+            results = [service.extract_one(text) for text in texts]
+        failures = ExtractionRepository(conn).count_failures()
+    finally:
+        conn.close()
+
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    field_names = [
+        "sku", "title", "price_minor", "currency", "stock",
+        "category", "image_url", "source_hash",
+    ]
+    with out_path.open("w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=field_names)
+        writer.writeheader()
+        for result in results:
+            if not result.ok or result.draft is None:
+                continue
+            row = asdict(result.draft)
+            row["source_hash"] = result.source_hash
+            writer.writerow(row)
+
+    success = sum(1 for r in results if r.ok)
+    failed = len(results) - success
+    attempts = sum(r.attempts for r in results)
+    print(
+        f"texts={len(results)} success={success} failed={failed} "
+        f"attempts={attempts} failures_in_db={failures} wrote={out_path}"
+    )
+    return 0
+
+
 def cmd_reconcile(args: argparse.Namespace) -> int:
     orders, order_issues, _ = read_orders_csv(args.orders)
     bills, bill_issues, duplicate_keys = read_bills_csv(args.bills)
@@ -352,6 +420,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_inventory(args)
     if args.command == "serve":
         return cmd_serve(args)
+    if args.command == "extract":
+        return cmd_extract(args)
     if args.command == "report":
         return cmd_report(args)
     return 2

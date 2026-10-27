@@ -252,3 +252,32 @@ class SyncRepository:
         return self._conn.execute(
             "SELECT COUNT(*) FROM sync_items WHERE run_id = ?", (run_id,)
         ).fetchone()[0]
+
+
+class ExtractionRepository:
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+
+    def record_failure(
+        self, source_hash: str, raw_response: str, error: str
+    ) -> None:
+        self._conn.execute(
+            "INSERT INTO extraction_failures "
+            "(source_hash, raw_response, validation_error, created_at) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT (source_hash) DO UPDATE SET "
+            "raw_response = excluded.raw_response, "
+            "validation_error = excluded.validation_error, "
+            "created_at = excluded.created_at",
+            (
+                source_hash,
+                raw_response,
+                error,
+                datetime.now(UTC).isoformat(),
+            ),
+        )
+
+    def count_failures(self) -> int:
+        return self._conn.execute(
+            "SELECT COUNT(*) FROM extraction_failures"
+        ).fetchone()[0]

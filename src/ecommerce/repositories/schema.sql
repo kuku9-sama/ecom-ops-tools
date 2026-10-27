@@ -107,3 +107,11 @@ CREATE TABLE IF NOT EXISTS sync_items (
     PRIMARY KEY (run_id, item_key),
     FOREIGN KEY (run_id) REFERENCES sync_runs (run_id)
 );
+
+-- 结构化提取失败队列。
+CREATE TABLE IF NOT EXISTS extraction_failures (
+    source_hash      TEXT PRIMARY KEY,
+    raw_response     TEXT,
+    validation_error TEXT,
+    created_at       TEXT NOT NULL
+);
