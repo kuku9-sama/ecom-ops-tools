@@ -14,6 +14,7 @@
 - 多币种对账：行级匹配、订单级兜底、重复/多账单、退款/金额/汇率差异。
 - 库存比对：平台快照 vs 本地库存，输出差异 CSV；只读。
 - 本地 FastAPI 看板：订单、同步运行、对账汇总、库存差异。
+- 结构化提取：文本 → 商品草稿；默认 mock，失败进 `extraction_failures`；可选 DeepSeek。
 
 ## 不做什么 / 已知限制
 
@@ -23,7 +24,7 @@
 - 对账目前读 CSV；SQLite 版本还没接。
 - 汇总 JSON 的金额合计是原始求和，不是配对后的合计。
 - 一个订单多条聚合账单、混合币种聚合行还没完全处理。
-- 结构化提取还没实现。
+- 真实 DeepSeek 调用未在无 key 环境验证。
 - 本地单用户工具，不是多租户服务。
 
 ## 环境要求
@@ -46,7 +47,7 @@ python -m venv .venv
 ./.venv/Scripts/python.exe scripts/demo.py
 ```
 
-自动起本地 Mock、用 `data/demo_run.db`、跑订单导入 → 双平台同步 → 商品草稿 → 对账 → 库存 → report，结果写到 `outputs/`。
+自动起本地 Mock、用 `data/demo_run.db`、跑订单导入 → 双平台同步 → 商品草稿 → 结构化提取 → 对账 → 库存 → report，结果写到 `outputs/`。
 
 启动看板：
 
@@ -65,6 +66,7 @@ ECOMMERCE_DB=data/demo_run.db ./.venv/Scripts/python.exe -m ecommerce.cli serve
 ./.venv/Scripts/python.exe -m ecommerce.cli sync-orders --platform shopee_mock --since 2026-10-01T00:00:00+00:00 --db data/ecommerce.db
 ./.venv/Scripts/python.exe -m ecommerce.cli reconcile --orders data/orders.csv --bills data/bills.csv --fx data/fx_rates.csv --out outputs/reconciliation.csv
 ./.venv/Scripts/python.exe -m ecommerce.cli inventory --platform shopee_mock --local data/local_stock.csv --out outputs/inventory_diff.csv
+./.venv/Scripts/python.exe -m ecommerce.cli extract --input data/raw_products.jsonl --provider mock --out outputs/extracted_products.csv --db data/ecommerce.db
 ./.venv/Scripts/python.exe -m ecommerce.cli report --db data/ecommerce.db
 ```
 
@@ -109,4 +111,5 @@ CLI / FastAPI 薄层
 - 数据是合成的，不含真实客户信息。
 - `data/README.md` 记录每个脏数据用例的预期行为。
 - 库存比对只读；商品只建草稿；不自动退款/改价/写回库存。
+- 可选：复制 `.env.example` 为 `.env`，填 `DEEPSEEK_API_KEY`；`.env` 不进 git。
 - Mock 不是真实接入。

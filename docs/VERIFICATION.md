@@ -2,7 +2,7 @@
 
 > 日期：2026-10-27
 > 环境：Windows 11；Python 3.14.7；`.venv`
-> 结论：58 个测试通过；`ruff` 干净；新虚拟环境可按 README 复现；一条命令演示跑通。
+> 结论：62 个测试通过；`ruff` 干净；新虚拟环境可按 README 复现；一条命令演示跑通。
 
 ---
 
@@ -21,13 +21,14 @@
 | `tests/test_sync.py` | 多页同步、失败保留游标、恢复继续 |
 | `tests/test_reconciliation.py` | 行级/订单级对账、汇率回退、CLI 报告输出 |
 | `tests/test_inventory.py` | 本地库存读取、差异分类、重复 SKU |
+| `tests/test_extraction.py` | 正常提取、修复重试、失败队列、JSONL 读取 |
 | `tests/test_api.py` | `/health`、`/orders`、首页、对账汇总、库存差异 |
 | `tests/test_smoke.py` | 包导入 |
 
 命令与结果：
 
 ```text
-pytest -q        → 58 passed
+pytest -q        → 62 passed
 ruff check .     → All checks passed
 ```
 
@@ -116,6 +117,7 @@ fetched=21 valid_orders=8 valid_lines=11 issues=8 inserted=8
 Shopee 同步：fetched=2 inserted=2
 Lazada 同步：fetched=3 inserted=3（page size 2）
 商品草稿：created=1
+结构化提取：texts=4 success=3 failed=1 failures_in_db=1
 对账：rows=13
 库存：mismatch=3 missing_locally=1
 report：orders=13 order_lines=16 products=1
@@ -141,7 +143,7 @@ pip install -r requirements.txt
 pip install setuptools
 pip install -e . --no-build-isolation
 python check_env.py          → OK: environment ready
-pytest -q                    → 58 passed
+pytest -q                    → 62 passed
 ruff check .                 → All checks passed
 python scripts/demo.py       → 跑通
 ```
@@ -178,5 +180,5 @@ G3：
 - 一个订单多条聚合账单、混合币种聚合行还没完全处理。
 - 对账目前读 CSV，SQLite 版本还没接。
 - 汇总 JSON 的金额合计是原始求和，不是配对后的合计。
-- 结构化提取还没实现。
+- 真实 DeepSeek 调用未在无 key 环境验证。
 - 本地单用户，不是多租户服务。

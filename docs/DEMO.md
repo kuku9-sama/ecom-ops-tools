@@ -1,6 +1,6 @@
 # 演示脚本（约 3 分钟）
 
-> 目标：用本地 Mock 展示“导入 → 同步 → 商品草稿 → 测试”的闭环。
+> 目标：用本地 Mock 展示“导入 → 同步 → 商品草稿 → 结构化提取 → 对账 → 测试”的闭环。
 > 边界：平台是本地 Mock；不验证 Lazada 真实签名；商品只建草稿，不发布。
 
 ---
@@ -11,7 +11,7 @@
 ./.venv/Scripts/python.exe scripts/demo.py
 ```
 
-它会自动起 Mock、用 `data/demo_run.db`、跑订单导入/双平台同步/商品草稿/对账/库存/report，并写入 `outputs/`。
+它会自动起 Mock、用 `data/demo_run.db`、跑订单导入/双平台同步/商品草稿/结构化提取/对账/库存/report，并写入 `outputs/`。
 
 演示完启动看板：
 
@@ -171,6 +171,26 @@ Lazada 版本（可选，Mock 在跑）：
 
 ---
 
+### 结构化提取（mock）
+
+```bash
+./.venv/Scripts/python.exe -m ecommerce.cli extract --input data/raw_products.jsonl --provider mock --out outputs/extracted_products.csv --db data/demo_products.db
+```
+
+预期：
+
+```text
+texts=4 success=3 failed=1 attempts=6 failures_in_db=1 wrote=outputs/extracted_products.csv
+```
+
+讲解点：
+
+- 正常 2 条、修复 1 条、坏 JSON 1 条进失败队列。
+- 默认 mock；设置 `DEEPSEEK_API_KEY` 可接 DeepSeek（可选）。
+- 失败只记录 hash、原始响应和校验错误，不写真实客户信息。
+
+---
+
 ## 5. 多币种行级对账
 
 ```bash
@@ -247,7 +267,7 @@ orders=5 order_lines=5 products=0
   run=<...> platform=lazada status=succeeded fetched=3 ...
   run=<...> platform=shopee_mock status=succeeded fetched=2 ...
 
-58 passed
+62 passed
 All checks passed
 ```
 
@@ -277,16 +297,16 @@ All checks passed
 | 0:20–0:50 | 架构 | CLI → 服务层 → Port ← 适配器 → Mock/SQLite |
 | 0:50–1:30 | 订单导入 | 21 行脏数据、8 个合法订单、第二次 0 新增 |
 | 1:30–2:10 | 平台同步 | 同一服务换 Shopee/Lazada 适配器；分页 + 断点 |
-| 2:10–2:40 | 商品草稿 | 只建草稿；单行失败不影响整批；超时回查 |
+| 2:10–2:40 | 商品草稿 + 结构化提取 | 只建草稿；失败修复 1 次，仍失败进队列 |
 | 2:40–2:55 | 对账 + 库存 | 重复账单、汇率缺失、聚合账单、库存差异 |
-| 2:55–3:00 | 证据与限制 | 58 个测试；Mock 不是真实接入；看板/结构化提取可选 |
+| 2:55–3:00 | 证据与限制 | 62 个测试；Mock 不是真实接入；看板/提取已覆盖 |
 
 ---
 
 ## 10. 边界与已知限制
 
 - 平台是本地 Mock，没有真实账号；Lazada 签名、QPS、Finance 端点未验证。
-- 订单同步覆盖分页、游标和断点恢复；对账覆盖行级和订单级兜底；库存比对和本地看板已覆盖；结构化提取还没做。
+- 订单同步覆盖分页、游标和断点恢复；对账覆盖行级和订单级兜底；库存比对、本地看板、结构化提取已覆盖；真实 DeepSeek 未验证。
 - 商品只创建草稿，不发布。
 - 不自动退款、改价、写回库存。
 - 数据是合成的，不含真实客户信息。
