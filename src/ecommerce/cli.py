@@ -1,5 +1,6 @@
 import argparse
 import csv
+import json
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -56,6 +57,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_reconcile.add_argument("--bills", default="data/bills.csv")
     p_reconcile.add_argument("--fx", default="data/fx_rates.csv")
     p_reconcile.add_argument("--out", default="outputs/reconciliation.csv")
+    p_reconcile.add_argument("--summary", default="outputs/reconciliation_summary.json")
+    p_reconcile.add_argument("--unmatched", default="outputs/unmatched.csv")
+    p_reconcile.add_argument("--data-quality", default="outputs/data_quality.csv")
 
     return parser
 
@@ -186,14 +190,49 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
 
     result = reconcile(orders, bills, fx, duplicate_keys)
 
-    out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
     field_names = list(ReconRow.__dataclass_fields__)
-    with out_path.open("w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=field_names)
-        writer.writeheader()
-        for row in result.rows:
-            writer.writerow(asdict(row))
+
+    def write_rows(path: str, rows) -> Path:
+        out = Path(path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=field_names)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(asdict(row))
+        return out
+
+    diff_path = write_rows(args.out, result.rows)
+    unmatched_path = write_rows(
+        args.unmatched,
+        [r for r in result.rows if r.category in {"missing_order", "orphan_bill"}],
+    )
+    data_quality_path = write_rows(
+        args.data_quality,
+        [
+            r for r in result.rows
+            if r.category in {
+                "duplicate_bill", "multiple_bills_for_line",
+                "bill_inconsistent", "fx_missing",
+            }
+        ],
+    )
+
+    totals = {
+        "expected_minor": sum(r.expected_minor or 0 for r in result.rows),
+        "actual_minor": sum(r.actual_minor or 0 for r in result.rows),
+        "diff_minor": sum(r.diff_minor or 0 for r in result.rows),
+    }
+    summary_path = Path(args.summary)
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(
+        json.dumps(
+            {"counts": result.counts, "totals": totals, "rows": len(result.rows)},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
     for issue in order_issues:
         log_event("recon_issue", source="orders", row=issue.row_number,
@@ -204,11 +243,13 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
 
     print(
         f"orders={len(orders)} order_lines={sum(len(o.lines) for o in orders)} "
-        f"bills={len(bills)} rows={len(result.rows)} wrote={out_path}"
+        f"bills={len(bills)} rows={len(result.rows)}"
     )
     print(
         f"issues: orders={len(order_issues)} bills={len(bill_issues)} fx={len(fx_issues)}"
     )
+    print(f"wrote={diff_path} summary={summary_path}")
+    print(f"unmatched={unmatched_path} data_quality={data_quality_path}")
     for category, count in sorted(result.counts.items()):
         print(f"  {category}={count}")
     return 0

@@ -1,5 +1,5 @@
 import csv
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -21,6 +21,7 @@ BILL_COLUMNS = (
 )
 FX_COLUMNS = ("base", "quote", "rate", "effective_date", "source")
 LINE_TOLERANCE = 1
+AGGREGATE_TOLERANCE = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -301,14 +302,37 @@ def reconcile(
         indicator=True,
     )
 
+    left_by_order: dict[tuple[str, str], list] = defaultdict(list)
+    right_by_order: dict[tuple[str, str], list] = defaultdict(list)
     for _, row in merged.iterrows():
+        key = (str(row["platform"]), str(row["platform_order_id"]))
         if row["_merge"] == "left_only":
+            left_by_order[key].append(row)
+        elif row["_merge"] == "right_only":
+            right_by_order[key].append(row)
+
+    # 行级没匹配上，但订单两侧各有一方时，才做订单级兜底。
+    aggregate_keys = {
+        key for key in left_by_order
+        if len(right_by_order.get(key, [])) == 1
+    }
+
+    for _, row in merged.iterrows():
+        key = (str(row["platform"]), str(row["platform_order_id"]))
+        if row["_merge"] == "left_only":
+            if key in aggregate_keys:
+                continue
             rows.append(_missing_row(row))
             continue
         if row["_merge"] == "right_only":
+            if key in aggregate_keys:
+                continue
             rows.append(_orphan_row(row))
             continue
         rows.append(_compare_row(row, fx))
+
+    for key in aggregate_keys:
+        rows.append(_aggregate_row(left_by_order[key], right_by_order[key][0], fx))
 
     return _result(rows)
 
@@ -380,6 +404,67 @@ def _compare_row(row, fx: dict[tuple[str, str, str], Decimal]) -> ReconRow:
         platform, order_id, line_id, category,
         expected, gross, diff,
         str(rate), rate_date, rate_source, message,
+    )
+
+
+def _aggregate_row(left_rows, bill_row, fx: dict[tuple[str, str, str], Decimal]) -> ReconRow:
+    platform = str(bill_row["platform"])
+    order_id = str(bill_row["platform_order_id"])
+    settlement_currency = str(bill_row["settlement_currency"])
+    settled_at = str(bill_row["settled_at"])
+    bill_id = str(bill_row["bill_id"])
+    bill_line_id = str(bill_row["line_id"])
+    bill_ref = bill_id if not bill_line_id else f"{bill_id}/{bill_line_id}"
+
+    gross = int(bill_row["gross_minor"])
+    fee = int(bill_row["fee_minor"])
+    bill_refund = int(bill_row["bill_refund_minor"])
+    bill_net = int(bill_row["bill_net_minor"])
+
+    expected = 0
+    expected_refund = 0
+    first_rate = None
+    first_date = None
+    first_source = None
+    try:
+        for row in left_rows:
+            rate, rate_date, rate_source = _rate_for(
+                str(row["currency"]),
+                settlement_currency,
+                settled_at,
+                str(row["paid_at"]),
+                fx,
+            )
+            if first_rate is None:
+                first_rate = str(rate)
+                first_date = rate_date
+                first_source = rate_source
+            expected += convert_minor(int(row["order_net_minor"]), rate)
+            expected_refund += convert_minor(int(row["order_refund_minor"]), rate)
+    except MissingFxRate as exc:
+        return ReconRow(
+            platform, order_id, "", "fx_missing",
+            None, gross, None, None, None, None, str(exc),
+        )
+
+    diff = gross - expected
+    message = f"订单级兜底（账单 {bill_ref}）"
+    if bill_net != gross - fee - bill_refund:
+        category = "bill_inconsistent"
+        message += " net != gross - fee - refund"
+    elif abs(bill_refund - expected_refund) > AGGREGATE_TOLERANCE:
+        category = "refund_mismatch"
+        message += " 退款不一致"
+    elif abs(diff) <= AGGREGATE_TOLERANCE:
+        category = "aggregated_bill"
+    else:
+        category = "amount_mismatch"
+        message += f" 金额差异 {diff}"
+
+    return ReconRow(
+        platform, order_id, "", category,
+        expected, gross, diff,
+        first_rate, first_date, first_source, message,
     )
 
 
