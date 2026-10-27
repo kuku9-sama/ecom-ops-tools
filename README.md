@@ -112,4 +112,5 @@ CLI / FastAPI 薄层
 - `data/README.md` 记录每个脏数据用例的预期行为。
 - 库存比对只读；商品只建草稿；不自动退款/改价/写回库存。
 - 可选：复制 `.env.example` 为 `.env`，填 `DEEPSEEK_API_KEY`；`.env` 不进 git。
+- 看板布局使用 Tabler 1.7.1（MIT），许可证随文件放在 `src/ecommerce/api/static/vendor/tabler/`。
 - Mock 不是真实接入。

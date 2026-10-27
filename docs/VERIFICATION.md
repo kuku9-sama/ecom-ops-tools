@@ -2,7 +2,7 @@
 
 > 日期：2026-10-27
 > 环境：Windows 11；Python 3.14.7；`.venv`
-> 结论：62 个测试通过；`ruff` 干净；新虚拟环境可按 README 复现；一条命令演示跑通。
+> 结论：63 个测试通过；`ruff` 干净；新虚拟环境可按 README 复现；一条命令演示跑通。
 
 ---
 
@@ -22,13 +22,13 @@
 | `tests/test_reconciliation.py` | 行级/订单级对账、汇率回退、CLI 报告输出 |
 | `tests/test_inventory.py` | 本地库存读取、差异分类、重复 SKU |
 | `tests/test_extraction.py` | 正常提取、修复重试、失败队列、JSONL 读取 |
-| `tests/test_api.py` | `/health`、`/orders`、首页、对账汇总、库存差异 |
+| `tests/test_api.py` | `/health`、`/orders`、首页、静态资源、对账汇总、库存差异 |
 | `tests/test_smoke.py` | 包导入 |
 
 命令与结果：
 
 ```text
-pytest -q        → 62 passed
+pytest -q        → 63 passed
 ruff check .     → All checks passed
 ```
 
@@ -143,7 +143,7 @@ pip install -r requirements.txt
 pip install setuptools
 pip install -e . --no-build-isolation
 python check_env.py          → OK: environment ready
-pytest -q                    → 62 passed
+pytest -q                    → 63 passed
 ruff check .                 → All checks passed
 python scripts/demo.py       → 跑通
 ```
