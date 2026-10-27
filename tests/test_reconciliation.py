@@ -1,7 +1,10 @@
+import json
+from argparse import Namespace
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from ecommerce.cli import cmd_reconcile
 from ecommerce.domain.models import BillLine, Order, OrderLine
 from ecommerce.services.order_service import read_orders_csv
 from ecommerce.services.reconciliation_service import (
@@ -46,8 +49,15 @@ def test_line_level_reconciliation_counts():
     assert counts.get("fx_missing") == 1
     assert counts.get("duplicate_bill") == 1
     assert counts.get("multiple_bills_for_line") == 1
-    assert counts.get("missing_order") == 5
-    assert counts.get("orphan_bill") == 3
+    assert counts.get("aggregated_bill") == 2
+    assert counts.get("missing_order") == 2
+    assert counts.get("orphan_bill") == 1
+    assert len(result.rows) == 13
+
+    aggregated = sorted(
+        r.platform_order_id for r in result.rows if r.category == "aggregated_bill"
+    )
+    assert aggregated == ["O1011", "O1012"]
 
     matched = next(r for r in result.rows if r.category == "matched")
     assert matched.platform_order_id == "O1015"
@@ -112,3 +122,65 @@ def test_fx_falls_back_to_order_date():
     assert row.category == "matched"
     assert row.fx_rate_source == "order_date_fallback"
     assert row.fx_rate_date == "2026-10-01"
+
+
+def test_order_level_amount_mismatch():
+    order = Order(
+        platform="p",
+        platform_order_id="O2",
+        status="paid",
+        currency="CNY",
+        paid_at=datetime.fromisoformat("2026-10-01T10:00:00+08:00"),
+        updated_at=datetime.fromisoformat("2026-10-01T10:05:00+08:00"),
+        lines=(
+            OrderLine(
+                platform="p", platform_order_id="O2", line_id="L1", sku="S1",
+                qty=1, unit_price_minor=1000, discount_minor=0, refund_minor=0,
+                currency="CNY",
+            ),
+            OrderLine(
+                platform="p", platform_order_id="O2", line_id="L2", sku="S2",
+                qty=1, unit_price_minor=2000, discount_minor=0, refund_minor=0,
+                currency="CNY",
+            ),
+        ),
+    )
+    bill = BillLine(
+        platform="p",
+        bill_id="B2",
+        platform_order_id="O2",
+        line_id="",
+        settlement_currency="CNY",
+        gross_minor=2990,
+        fee_minor=0,
+        refund_minor=0,
+        net_minor=2990,
+        settled_at=date(2026, 10, 2),
+    )
+
+    result = reconcile([order], [bill], {}, set())
+
+    row = result.rows[0]
+    assert row.category == "amount_mismatch"
+    assert row.line_id == ""
+    assert row.diff_minor == -10
+
+
+def test_cli_writes_reports(tmp_path):
+    args = Namespace(
+        orders=str(DATA / "orders.csv"),
+        bills=str(DATA / "bills.csv"),
+        fx=str(DATA / "fx_rates.csv"),
+        out=str(tmp_path / "recon.csv"),
+        summary=str(tmp_path / "summary.json"),
+        unmatched=str(tmp_path / "unmatched.csv"),
+        data_quality=str(tmp_path / "data_quality.csv"),
+    )
+
+    assert cmd_reconcile(args) == 0
+
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert summary["counts"]["aggregated_bill"] == 2
+    assert summary["counts"]["missing_order"] == 2
+    assert (tmp_path / "unmatched.csv").exists()
+    assert (tmp_path / "data_quality.csv").exists()
