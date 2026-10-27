@@ -11,6 +11,9 @@ requires-python = ">=3.12"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+ecommerce = ["api/templates/*.html", "api/static/vendor/tabler/*"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]

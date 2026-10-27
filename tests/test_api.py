@@ -53,3 +53,13 @@ def test_summary_and_inventory(tmp_path, monkeypatch):
     assert client.get("/reconciliation/summary").json()["counts"]["matched"] == 1
     assert len(client.get("/inventory/diff").json()) == 1
     assert client.get("/").status_code == 200
+
+
+def test_static_asset_served(tmp_path, monkeypatch):
+    _prepare_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    resp = client.get("/static/vendor/tabler/tabler.min.css")
+
+    assert resp.status_code == 200
+    assert "Tabler" in resp.text

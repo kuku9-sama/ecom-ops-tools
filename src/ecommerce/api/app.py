@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from ecommerce.repositories.sqlite import SyncRepository, connect, init_db
@@ -16,6 +17,11 @@ app = FastAPI(
     description="只读本地 SQLite 和 outputs；平台数据以平台为准。",
 )
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+app.mount(
+    "/static",
+    StaticFiles(directory=str(Path(__file__).parent / "static")),
+    name="static",
+)
 
 CATEGORY_LABELS = {
     "matched": "已匹配",
