@@ -186,7 +186,7 @@ texts=4 success=3 failed=1 attempts=6 failures_in_db=1 wrote=outputs/extracted_p
 讲解点：
 
 - 正常 2 条、修复 1 条、坏 JSON 1 条进失败队列。
-- 默认 mock；设置 `DEEPSEEK_API_KEY` 可接 DeepSeek（可选）。
+- 默认 mock 是确定性正则解析，不调用模型；设置 `DEEPSEEK_API_KEY` 可接 DeepSeek（可选）。
 - 失败只记录 hash、原始响应和校验错误，不写真实客户信息。
 
 ---
@@ -289,6 +289,71 @@ All checks passed
 
 ---
 
+## 8.1 加演：故障注入与恢复（可选，约 40 秒）
+
+Mock 支持注入故障，可以现场演示「失败 → 重跑 → 不重复」。终端 A 先起 Mock（8100），终端 B 执行。
+
+先让下一次 GET 返回 429：
+
+```bash
+rm -f data/demo_fault.db
+curl -s -X POST "http://127.0.0.1:8100/mock/fault?mode=429&times=1"
+./.venv/Scripts/python.exe -m ecommerce.cli sync-orders --platform lazada --since 2026-10-01T00:00:00+00:00 --base-url http://127.0.0.1:8100 --page-size 2 --db data/demo_fault.db
+```
+
+预期仍是成功：
+
+```text
+run_id=<uuid> fetched=3 inserted=3 updated=0
+```
+
+再让服务端连续 500，耗尽 GET 的 4 次重试：
+
+```bash
+rm -f data/demo_fault.db
+curl -s -X POST "http://127.0.0.1:8100/mock/fault?mode=500&times=4"
+./.venv/Scripts/python.exe -m ecommerce.cli sync-orders --platform lazada --since 2026-10-01T00:00:00+00:00 --base-url http://127.0.0.1:8100 --page-size 2 --db data/demo_fault.db
+```
+
+预期失败、退出码 1：
+
+```text
+sync failed: /orders/get server error 500
+```
+
+故障耗尽后再跑两次：
+
+```bash
+./.venv/Scripts/python.exe -m ecommerce.cli sync-orders --platform lazada --since 2026-10-01T00:00:00+00:00 --base-url http://127.0.0.1:8100 --page-size 2 --db data/demo_fault.db
+./.venv/Scripts/python.exe -m ecommerce.cli sync-orders --platform lazada --since 2026-10-01T00:00:00+00:00 --base-url http://127.0.0.1:8100 --page-size 2 --db data/demo_fault.db
+./.venv/Scripts/python.exe -m ecommerce.cli report --db data/demo_fault.db
+```
+
+预期：
+
+```text
+run_id=<uuid> fetched=3 inserted=3 updated=0
+run_id=<uuid> fetched=3 inserted=0 updated=3
+orders=3 order_lines=3 products=0
+  run=<uuid> platform=lazada status=succeeded ...
+  run=<uuid> platform=lazada status=succeeded ...
+  run=<uuid> platform=lazada status=failed ...
+```
+
+讲解点：
+
+- GET 最多重试 4 次、尊重 `Retry-After`；POST 默认不重试。
+- 失败的 run 留在 `sync_runs`，重跑按自然键 upsert，不产生重复订单。
+- 页级断点（游标保留、下次从断点续跑）由测试证明：
+
+```bash
+./.venv/Scripts/python.exe -m pytest tests/test_sync.py -v
+```
+
+预期 2 passed，其中 `test_failure_keeps_cursor_and_resume_continues`。
+
+---
+
 ## 9. 三分钟讲解顺序
 
 | 时间 | 内容 | 说什么 |
@@ -300,6 +365,25 @@ All checks passed
 | 2:10–2:40 | 商品草稿 + 结构化提取 | 只建草稿；失败修复 1 次，仍失败进队列 |
 | 2:40–2:55 | 对账 + 库存 | 重复账单、汇率缺失、聚合账单、库存差异 |
 | 2:55–3:00 | 证据与限制 | 62 个测试；Mock 不是真实接入；看板/提取已覆盖 |
+
+---
+
+## 9.1 亮点与现场证据
+
+| 亮点 | 现场证据 |
+|---|---|
+| 自然键幂等导入 | 同一 CSV 再跑一次：`inserted=0 updated=8`，行数不变 |
+| 换平台不换业务代码 | 同一条 `sync-orders` 只换 `--platform shopee_mock/lazada` |
+| 分页 + 每页与游标同事务 | Lazada `--page-size 2` 仍 `fetched=3`；`test_sync.py` |
+| 断点恢复 | `test_failure_keeps_cursor_and_resume_continues` |
+| 重试边界 | 429 重试后成功；500 耗尽 4 次失败；POST 429 不重试 |
+| 失败后可恢复且不重复 | 500 失败 → 重跑 `inserted=3` → 再跑 `inserted=0 updated=3` |
+| 行级对账 + 订单级兜底 | `aggregated_bill=2` |
+| 不静默合并问题账单 | `duplicate_bill`、`multiple_bills_for_line` 进数据质量清单 |
+| 提取失败可修复、可追溯 | `texts=4 success=3 failed=1 attempts=6`，失败进 `extraction_failures` |
+| 只建草稿 + 超时回查 | 第一次 `created=1`，再跑 `exists=1`；`test_product_service.py` |
+| 金额不用 float | 最小货币单位整数 + `Decimal` 汇率；缺失汇率报 `fx_missing` |
+| 平台边界清楚 | Mock 端点、Swagger 中文说明；不自动发布/退款/改价/写回库存 |
 
 ---
 
