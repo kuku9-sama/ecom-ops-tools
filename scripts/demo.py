@@ -162,10 +162,7 @@ def main() -> int:
 
     print()
     print("演示完成。输出目录：outputs/")
-    print(
-        "看板：ECOMMERCE_DB=data/demo_run.db "
-        "./.venv/Scripts/python.exe -m ecommerce.cli serve"
-    )
+    print("看板：运行 `ecommerce.cli serve`，Windows 可双击 start_demo.bat 一键启动。")
     return 0
 
 
