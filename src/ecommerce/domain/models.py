@@ -59,3 +59,21 @@ class BillLine:
     @property
     def is_internally_consistent(self) -> bool:
         return self.net_minor == self.gross_minor - self.fee_minor - self.refund_minor
+
+
+@dataclass(frozen=True, slots=True)
+class InventoryItem:
+    platform: str
+    sku: str
+    stock: int
+
+
+@dataclass(frozen=True, slots=True)
+class InventoryDiff:
+    platform: str
+    sku: str
+    platform_stock: int | None
+    local_stock: int | None
+    diff: int | None
+    category: str
+    snapshot_at: str

@@ -68,6 +68,14 @@ ORDERS = [
 ]
 
 
+INVENTORY = [
+    {"sku": "MON-001", "stock": 18},
+    {"sku": "KB-001", "stock": 5},
+    {"sku": "ACC-001", "stock": 0},
+    {"sku": "USB-001", "stock": 10},
+]
+
+
 @app.post(
     "/mock/fault",
     summary="注入故障",
@@ -173,6 +181,31 @@ async def orders_get(
         "data": {
             "orders": page,
             "count": len(candidates),
+            "offset": offset,
+            "limit": limit,
+        },
+    }
+
+
+@app.get(
+    "/rest/inventory/get",
+    summary="拉取库存",
+    description="返回平台库存快照；只读，不写回。",
+)
+def inventory_get(
+    limit: int = Query(100, ge=1, description="每页条数，最大 100"),
+    offset: int = Query(0, ge=0, description="偏移量"),
+):
+    if limit > 100:
+        return JSONResponse(
+            {"code": "E_PARAM", "message": "limit must be <= 100"}, status_code=400
+        )
+    page = INVENTORY[offset: offset + limit]
+    return {
+        "code": "0",
+        "data": {
+            "items": page,
+            "count": len(INVENTORY),
             "offset": offset,
             "limit": limit,
         },

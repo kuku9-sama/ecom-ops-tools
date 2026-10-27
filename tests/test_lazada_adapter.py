@@ -6,11 +6,17 @@ import requests
 import responses
 
 from ecommerce.adapters.lazada import LazadaAdapter
-from ecommerce.domain.errors import AuthError, ParseError, TransientError
+from ecommerce.domain.errors import (
+    AuthError,
+    ParseError,
+    PermanentError,
+    TransientError,
+)
 
 BASE = "https://mock.lazada"
 TOKEN_URL = re.compile(r"https://mock\.lazada/rest/auth/token/create.*")
 ORDERS_URL = re.compile(r"https://mock\.lazada/rest/orders/get.*")
+INVENTORY_URL = re.compile(r"https://mock\.lazada/rest/inventory/get.*")
 SINCE = datetime.fromisoformat("2026-10-01T00:00:00+00:00")
 
 ORDER_1 = {
@@ -118,6 +124,15 @@ def test_401_raises_auth_error():
 
 
 @responses.activate
+def test_400_raises_permanent_error():
+    _add_token()
+    responses.add(responses.GET, ORDERS_URL, status=400)
+
+    with pytest.raises(PermanentError):
+        _adapter().list_orders(SINCE, None)
+
+
+@responses.activate
 def test_bad_json_raises_parse_error():
     _add_token()
     responses.add(responses.GET, ORDERS_URL, body="not json{", status=200)
@@ -152,3 +167,65 @@ def test_page_size_bounds():
         LazadaAdapter(BASE, page_size=0)
     with pytest.raises(ValueError):
         LazadaAdapter(BASE, page_size=101)
+
+
+@responses.activate
+def test_list_inventory():
+    _add_token()
+    responses.add(
+        responses.GET,
+        INVENTORY_URL,
+        json={
+            "code": "0",
+            "data": {
+                "items": [{"sku": "MON-001", "stock": 18}],
+                "count": 1,
+                "offset": 0,
+                "limit": 100,
+            },
+        },
+    )
+
+    page = _adapter().list_inventory(None)
+
+    assert len(page.items) == 1
+    assert page.items[0].sku == "MON-001"
+    assert page.items[0].stock == 18
+    assert page.next_cursor is None
+
+
+@responses.activate
+def test_list_inventory_pagination():
+    _add_token()
+    responses.add(
+        responses.GET,
+        INVENTORY_URL,
+        json={
+            "data": {
+                "items": [{"sku": "A", "stock": 1}],
+                "count": 2,
+                "offset": 0,
+                "limit": 100,
+            }
+        },
+    )
+    responses.add(
+        responses.GET,
+        INVENTORY_URL,
+        json={
+            "data": {
+                "items": [{"sku": "B", "stock": 2}],
+                "count": 2,
+                "offset": 1,
+                "limit": 100,
+            }
+        },
+    )
+
+    adapter = _adapter()
+    first = adapter.list_inventory(None)
+    second = adapter.list_inventory(first.next_cursor)
+
+    assert first.next_cursor == "1"
+    assert second.items[0].sku == "B"
+    assert second.next_cursor is None

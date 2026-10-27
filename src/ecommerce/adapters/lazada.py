@@ -19,7 +19,7 @@ from ecommerce.domain.errors import (
     TransientError,
     ValidationError,
 )
-from ecommerce.domain.models import Order, OrderLine, ProductDraft
+from ecommerce.domain.models import InventoryItem, Order, OrderLine, ProductDraft
 from ecommerce.domain.money import format_minor, parse_amount_to_minor
 from ecommerce.domain.ports import Page
 
@@ -155,6 +155,33 @@ class LazadaAdapter:
             raise ParseError("product get response missing data")
         product_id = payload_data.get("product_id")
         return str(product_id) if product_id else None
+
+    def list_inventory(self, cursor: str | None) -> Page[InventoryItem]:
+        offset = int(cursor or 0)
+        data = get_with_retry(
+            self, "/inventory/get", {"limit": 100, "offset": offset}
+        )
+        payload = data.get("data")
+        if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+            raise ParseError("inventory response missing data.items")
+
+        items = []
+        for item in payload["items"]:
+            try:
+                items.append(
+                    InventoryItem(
+                        platform="lazada",
+                        sku=str(item["sku"]),
+                        stock=int(item["stock"]),
+                    )
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ParseError(f"bad inventory item: {exc}") from exc
+
+        count = int(payload.get("count", len(items)))
+        next_offset = offset + len(items)
+        next_cursor = str(next_offset) if items and next_offset < count else None
+        return Page(items=tuple(items), next_cursor=next_cursor)
 
 
 def _raise_for_status(resp: requests.Response, path: str) -> None:

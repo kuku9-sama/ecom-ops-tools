@@ -102,3 +102,12 @@ def test_product_get():
     assert found.status_code == 200
     assert found.json()["data"]["product_id"] == product_id
     assert missing.status_code == 404
+
+
+def test_inventory_get():
+    resp = client.get("/rest/inventory/get", params={"limit": 2, "offset": 0})
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["count"] == 4
+    assert len(data["items"]) == 2

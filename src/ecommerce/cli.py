@@ -1,6 +1,7 @@
 import argparse
 import csv
 import json
+from collections import Counter
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +10,7 @@ from ecommerce import __version__
 from ecommerce.adapters.lazada import LazadaAdapter
 from ecommerce.adapters.shopee_mock import ShopeeMockAdapter
 from ecommerce.domain.errors import EcommerceError
+from ecommerce.domain.models import InventoryDiff
 from ecommerce.logging_setup import log_event, setup_logging
 from ecommerce.repositories.sqlite import (
     OrderRepository,
@@ -17,6 +19,7 @@ from ecommerce.repositories.sqlite import (
     connect,
     init_db,
 )
+from ecommerce.services.inventory_service import InventoryService, read_local_stock_csv
 from ecommerce.services.order_service import OrderService, read_orders_csv
 from ecommerce.services.product_service import ProductService, read_products_csv
 from ecommerce.services.reconciliation_service import (
@@ -60,6 +63,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_reconcile.add_argument("--summary", default="outputs/reconciliation_summary.json")
     p_reconcile.add_argument("--unmatched", default="outputs/unmatched.csv")
     p_reconcile.add_argument("--data-quality", default="outputs/data_quality.csv")
+
+    p_inventory = sub.add_parser("inventory", help="比对平台库存与本地库存")
+    p_inventory.add_argument("--platform", default="shopee_mock")
+    p_inventory.add_argument("--base-url", default="http://127.0.0.1:8100")
+    p_inventory.add_argument("--local", default="data/local_stock.csv")
+    p_inventory.add_argument("--out", default="outputs/inventory_diff.csv")
+
+    p_serve = sub.add_parser("serve", help="启动本地看板")
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=8000)
 
     return parser
 
@@ -183,6 +196,38 @@ def cmd_import_products(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_inventory(args: argparse.Namespace) -> int:
+    if args.platform == "shopee_mock":
+        adapter = ShopeeMockAdapter()
+    elif args.platform == "lazada":
+        adapter = LazadaAdapter(args.base_url)
+    else:
+        print(f"unsupported platform: {args.platform}")
+        return 2
+
+    try:
+        local_stock = read_local_stock_csv(args.local)
+        rows = InventoryService(adapter).diff(local_stock)
+    except (ValueError, EcommerceError) as exc:
+        print(f"inventory failed: {exc}")
+        return 1
+
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    field_names = list(InventoryDiff.__dataclass_fields__)
+    with out_path.open("w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=field_names)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(asdict(row))
+
+    counts = Counter(row.category for row in rows)
+    print(f"skus={len(rows)} wrote={out_path}")
+    for category, count in sorted(counts.items()):
+        print(f"  {category}={count}")
+    return 0
+
+
 def cmd_reconcile(args: argparse.Namespace) -> int:
     orders, order_issues, _ = read_orders_csv(args.orders)
     bills, bill_issues, duplicate_keys = read_bills_csv(args.bills)
@@ -255,6 +300,18 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    uvicorn.run(
+        "ecommerce.api.app:app",
+        host=args.host,
+        port=args.port,
+        log_level="info",
+    )
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     conn = connect(args.db)
     try:
@@ -291,6 +348,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_import_products(args)
     if args.command == "reconcile":
         return cmd_reconcile(args)
+    if args.command == "inventory":
+        return cmd_inventory(args)
+    if args.command == "serve":
+        return cmd_serve(args)
     if args.command == "report":
         return cmd_report(args)
     return 2

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from ecommerce.domain.models import Order, OrderLine, ProductDraft
+from ecommerce.domain.models import InventoryItem, Order, OrderLine, ProductDraft
 from ecommerce.domain.ports import Page
 
 
@@ -78,3 +78,10 @@ class ShopeeMockAdapter:
 
     def find_product_by_sku(self, sku: str) -> str | None:
         return self._drafts.get(sku)
+
+    def list_inventory(self, cursor: str | None) -> Page[InventoryItem]:
+        items = (
+            InventoryItem(platform=self.platform, sku="MON-001", stock=20),
+            InventoryItem(platform=self.platform, sku="KB-002", stock=50),
+        )
+        return Page(items=items, next_cursor=None)
