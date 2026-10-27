@@ -66,6 +66,10 @@ def _start_mock(port: int):
     raise RuntimeError("Mock 启动超时")
 
 
+def _step(number: int, title: str) -> None:
+    print(f"\n[{number}/8] {title}")
+
+
 def _run(name: str, code: int) -> None:
     if code != 0:
         raise RuntimeError(f"{name} 失败，退出码 {code}")
@@ -83,9 +87,11 @@ def main() -> int:
         process, base_url = _start_mock(port)
         print(f"Mock: {base_url}")
 
+        _step(1, "订单 CSV 导入（幂等 + 脏数据）")
         _run("订单导入", cmd_import_orders(
             Namespace(csv=str(DATA / "orders.csv"), db=str(db_path))
         ))
+        _step(2, "Shopee-like 内存适配器同步")
         _run("Shopee 同步", cmd_sync_orders(
             Namespace(
                 platform="shopee_mock",
@@ -95,6 +101,7 @@ def main() -> int:
                 db=str(db_path),
             )
         ))
+        _step(3, "Lazada 形状 HTTP Mock 同步（分页）")
         _run("Lazada 同步", cmd_sync_orders(
             Namespace(
                 platform="lazada",
@@ -104,6 +111,7 @@ def main() -> int:
                 db=str(db_path),
             )
         ))
+        _step(4, "商品草稿（只建草稿，不发布）")
         _run("商品草稿", cmd_import_products(
             Namespace(
                 csv=str(DATA / "products.csv"),
@@ -112,6 +120,7 @@ def main() -> int:
                 db=str(db_path),
             )
         ))
+        _step(5, "结构化提取（失败进队列）")
         _run("结构化提取", cmd_extract(
             Namespace(
                 input=str(DATA / "raw_products.jsonl"),
@@ -120,6 +129,7 @@ def main() -> int:
                 db=str(db_path),
             )
         ))
+        _step(6, "多币种行级对账")
         _run("对账", cmd_reconcile(
             Namespace(
                 orders=str(DATA / "orders.csv"),
@@ -131,6 +141,7 @@ def main() -> int:
                 data_quality=str(OUTPUTS / "data_quality.csv"),
             )
         ))
+        _step(7, "库存比对（只读）")
         _run("库存比对", cmd_inventory(
             Namespace(
                 platform="lazada",
@@ -139,6 +150,7 @@ def main() -> int:
                 out=str(OUTPUTS / "inventory_diff.csv"),
             )
         ))
+        _step(8, "报告")
         _run("报告", cmd_report(Namespace(db=str(db_path))))
     finally:
         if process is not None:
