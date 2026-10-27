@@ -7,6 +7,10 @@
 
 ## 0. 最快方式（推荐）
 
+Windows 双击项目根目录的 `start_demo.bat`：自动跑完演示、启动看板并打开浏览器。端口从 8000 开始自动选空闲的。
+
+命令行方式：
+
 ```bash
 ./.venv/Scripts/python.exe scripts/demo.py
 ```

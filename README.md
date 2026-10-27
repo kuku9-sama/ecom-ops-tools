@@ -43,19 +43,32 @@ python -m venv .venv
 
 ## 一条命令演示
 
+### 最简方式（Windows）
+
+双击项目根目录的 `start_demo.bat`：自动跑完整演示、启动看板并打开浏览器。端口从 8000 开始自动选空闲的，终端里会打印地址。浏览器没自动弹出时，按终端里的地址手动打开。
+
+下面的命令用于手动分步执行。
+
 ```bash
 ./.venv/Scripts/python.exe scripts/demo.py
 ```
 
 自动起本地 Mock、用 `data/demo_run.db`、跑订单导入 → 双平台同步 → 商品草稿 → 结构化提取 → 对账 → 库存 → report，结果写到 `outputs/`。
 
-启动看板：
+启动看板（bash）：
 
 ```bash
 ECOMMERCE_DB=data/demo_run.db ./.venv/Scripts/python.exe -m ecommerce.cli serve
 ```
 
-打开 <http://127.0.0.1:8000/>。
+PowerShell 里环境变量要单独设：
+
+```powershell
+$env:ECOMMERCE_DB = "data/demo_run.db"
+./.venv/Scripts/python.exe -m ecommerce.cli serve
+```
+
+打开 <http://127.0.0.1:8000/>；端口被占用时加 `--port 8010`。
 
 ## 分步命令
 
