@@ -8,19 +8,26 @@ DATA = Path(__file__).resolve().parents[1] / "data"
 
 
 def test_mock_extract_normal():
-    result = ExtractionService(MockExtractor()).extract_one("27 inch monitor")
+    result = ExtractionService(MockExtractor()).extract_one(
+        "27 inch monitor, 129.90 CNY, stock 10"
+    )
 
     assert result.ok
     assert result.attempts == 1
     assert result.draft is not None
-    assert result.draft.currency == "CNY"
+    assert result.draft.price_minor == 12990
+    assert result.draft.stock == 10
 
 
 def test_repair_then_success():
-    result = ExtractionService(MockExtractor()).extract_one("REPAIR example: hub")
+    result = ExtractionService(MockExtractor()).extract_one(
+        "REPAIR example: hub, 25.00 CNY, stock 20"
+    )
 
     assert result.ok
     assert result.attempts == 2
+    assert result.draft is not None
+    assert result.draft.price_minor == 2500
 
 
 def test_broken_records_failure(db):
