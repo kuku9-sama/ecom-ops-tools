@@ -5,7 +5,25 @@
 
 ---
 
-## 0. 准备
+## 0. 最快方式（推荐）
+
+```bash
+./.venv/Scripts/python.exe scripts/demo.py
+```
+
+它会自动起 Mock、用 `data/demo_run.db`、跑订单导入/双平台同步/商品草稿/对账/库存/report，并写入 `outputs/`。
+
+演示完启动看板：
+
+```bash
+ECOMMERCE_DB=data/demo_run.db ./.venv/Scripts/python.exe -m ecommerce.cli serve
+```
+
+下面的分步命令用于讲解细节，不是必须逐条执行。
+
+---
+
+## 0.1 准备（分步演示）
 
 ```bash
 cd "X:/claudecodework/ecom-ops-tools"
@@ -189,7 +207,30 @@ unmatched=outputs/unmatched.csv data_quality=outputs/data_quality.csv
 
 ---
 
-## 6. 报告与测试
+## 6. 库存比对
+
+```bash
+./.venv/Scripts/python.exe -m ecommerce.cli inventory --platform lazada --base-url http://127.0.0.1:8100 --local data/local_stock.csv --out outputs/inventory_diff.csv
+```
+
+预期：
+
+```text
+skus=4 wrote=outputs/inventory_diff.csv
+  mismatch=3
+  missing_locally=1
+```
+
+讲解点：
+
+- 平台快照 vs 本地库存；只读，不写回。
+- MON-001 18 vs 20、KB-001 5 vs 50、ACC-001 0 vs 100 是 mismatch。
+- USB-001 平台有、本地没有，标记 missing_locally。
+- 差异 CSV 给运营补货/调库存，但系统不自动写回。
+
+---
+
+## 7. 报告与测试
 
 ```bash
 ./.venv/Scripts/python.exe -m ecommerce.cli report --db data/demo_sync.db
@@ -206,13 +247,13 @@ orders=5 order_lines=5 products=0
   run=<...> platform=lazada status=succeeded fetched=3 ...
   run=<...> platform=shopee_mock status=succeeded fetched=2 ...
 
-45 passed
+58 passed
 All checks passed
 ```
 
 ---
 
-## 7. Swagger 页面
+## 8. Swagger 页面
 
 浏览器打开 <http://127.0.0.1:8100/docs>。
 
@@ -228,7 +269,7 @@ All checks passed
 
 ---
 
-## 8. 三分钟讲解顺序
+## 9. 三分钟讲解顺序
 
 | 时间 | 内容 | 说什么 |
 |---|---|---|
@@ -237,15 +278,15 @@ All checks passed
 | 0:50–1:30 | 订单导入 | 21 行脏数据、8 个合法订单、第二次 0 新增 |
 | 1:30–2:10 | 平台同步 | 同一服务换 Shopee/Lazada 适配器；分页 + 断点 |
 | 2:10–2:40 | 商品草稿 | 只建草稿；单行失败不影响整批；超时回查 |
-| 2:40–2:55 | 行级/订单级对账 | 重复账单、汇率缺失、聚合账单兜底 |
-| 2:55–3:00 | 证据与限制 | 43 个测试；Mock 不是真实接入；订单级兜底/库存还没做 |
+| 2:40–2:55 | 对账 + 库存 | 重复账单、汇率缺失、聚合账单、库存差异 |
+| 2:55–3:00 | 证据与限制 | 58 个测试；Mock 不是真实接入；看板/结构化提取可选 |
 
 ---
 
-## 9. 边界与已知限制
+## 10. 边界与已知限制
 
 - 平台是本地 Mock，没有真实账号；Lazada 签名、QPS、Finance 端点未验证。
-- 订单同步覆盖分页、游标和断点恢复；对账覆盖行级和订单级兜底；库存比对、本地看板还没做。
+- 订单同步覆盖分页、游标和断点恢复；对账覆盖行级和订单级兜底；库存比对和本地看板已覆盖；结构化提取还没做。
 - 商品只创建草稿，不发布。
 - 不自动退款、改价、写回库存。
 - 数据是合成的，不含真实客户信息。

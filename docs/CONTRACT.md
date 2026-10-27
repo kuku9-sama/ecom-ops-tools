@@ -1,8 +1,8 @@
-# 数据契约 v0.3
+# 数据契约 v0.4
 
 > 项目：ecom-ops-tools
 > 日期：2026-10-20
-> 状态：第三版（补充分页与断点恢复）
+> 状态：第四版（补充库存比对）
 >
 > 这份文档是 CSV、领域模型、SQLite 表、平台适配器、对账规则之间的共同约定。
 > 改字段、改键、改金额语义，先改这里，再改代码。
@@ -11,7 +11,7 @@
 
 ## 1. 范围
 
-v0.3 覆盖：
+v0.4 覆盖：
 
 - 商品草稿（Product）
 - 订单头（Order）
@@ -19,10 +19,10 @@ v0.3 覆盖：
 - 账单行（BillLine）
 - 汇率（FxRate）
 - 同步运行与逐项状态（SyncRun / SyncItem）
+- 库存快照（InventoryItem / InventoryDiff）
 
-不在 v0.3：
+不在 v0.4：
 
-- 库存快照（后续补）
 - 结构化提取结果（后续补）
 - 真实平台签名、限流、分页细节（属于适配器内部实现，对外仍映射到本契约）
 
@@ -46,7 +46,7 @@ v0.3 覆盖：
 
 ### 2.3 币种
 
-ISO 4217 大写三字母。v0.3 支持：
+ISO 4217 大写三字母。v0.4 支持：
 
 | 币种 | 最小单位位数 | 例子 |
 |---|---|---|
@@ -66,7 +66,7 @@ ISO 4217 大写三字母。v0.3 支持：
 - `rate` 是 Decimal 字符串，存 TEXT，不用 float。
 - 方向：`1 base = rate quote`。例如 `USD,CNY,7.2500` 表示 1 USD = 7.25 CNY。
 - 必须 > 0。
-- v0.3 只支持直接货币对，不做三角换算。
+- v0.4 只支持直接货币对，不做三角换算。
 
 ### 2.5 时间与日期
 
@@ -103,7 +103,7 @@ ISO 4217 大写三字母。v0.3 支持：
 | updated_at | datetime | datetime | 是 | ISO 8601 带时区 |
 
 - 商品 CSV 不包含 `platform` / `platform_product_id` / `status`；`platform` 由导入命令指定，`platform_product_id` 由平台返回，`status` 固定 `draft`。
-- v0.3 只创建 `draft`，不发布。
+- v0.4 只创建 `draft`，不发布。
 - 唯一键：`(platform, sku)`。
 
 ### 3.2 Order（订单头）
@@ -222,6 +222,21 @@ sync_state（实现层断点表）：
 - 主键：`(platform, resource)`。
 - 用途：断点恢复；每页数据、逐项状态和游标必须在同一事务里提交。
 
+### 3.7 Inventory（库存快照）
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| platform | str | 平台键 |
+| sku | str | 商品 SKU |
+| platform_stock | int | 平台库存 |
+| local_stock | int/null | 本地库存；缺失为 null |
+| diff | int/null | 平台库存 - 本地库存 |
+| category | str | match / mismatch / missing_locally / missing_on_platform |
+| snapshot_at | datetime | 比对时间 |
+
+- 只读比对，不写回平台。
+- 平台快照通过适配器 `list_inventory` 分页拉取；本地库存来自 `data/local_stock.csv`。
+
 ---
 
 ## 4. 唯一键与约束
@@ -294,7 +309,7 @@ pending → processing → succeeded
 
 ---
 
-## 8. 对账口径（v0.3）
+## 8. 对账口径（v0.4）
 
 - 行级匹配：`(platform, platform_order_id, line_id)`。
 - 订单级兜底：行级未匹配的订单行/账单行按 `(platform, platform_order_id)` 聚合后再比；命中标记 `aggregated_bill`。
@@ -315,7 +330,7 @@ pending → processing → succeeded
 | duplicate_bill | 重复账单键 | 数据质量 |
 | multiple_bills_for_line | 同一订单行多条不同账单 | 人工复核 |
 
-- 手续费率的正确性需要业务规则（费率表），v0.3 不做；v0.3 只校验账单内部一致性和退款金额是否与订单一致。
+- 手续费率的正确性需要业务规则（费率表），v0.4 不做；v0.4 只校验账单内部一致性和退款金额是否与订单一致。
 - 订单级兜底只在同一 `platform_order_id` 下聚合，不做模糊匹配。
 
 ---
@@ -367,3 +382,4 @@ base,quote,rate,effective_date,source
 | 2026-10-20 | v0.1 | 初版：订单、订单行、账单、商品、汇率、同步状态 |
 | 2026-10-20 | v0.2 | 商品增加 platform_product_id / status；补充草稿导入口径 |
 | 2026-10-20 | v0.3 | 增加 sync_state 断点游标；同步分页/恢复口径 |
+| 2026-10-20 | v0.4 | 增加库存快照与库存比对 |
