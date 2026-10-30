@@ -1,6 +1,7 @@
 import csv
+import json
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -51,6 +52,57 @@ class ReconRow:
 class ReconResult:
     rows: tuple[ReconRow, ...]
     counts: dict[str, int]
+
+
+@dataclass(frozen=True, slots=True)
+class ReconReportPaths:
+    out: Path
+    summary: Path
+    unmatched: Path
+    data_quality: Path
+
+
+def write_recon_reports(result: ReconResult, paths: ReconReportPaths) -> None:
+    field_names = list(ReconRow.__dataclass_fields__)
+
+    def write_rows(path: Path, rows) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=field_names)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(asdict(row))
+
+    write_rows(paths.out, result.rows)
+    write_rows(
+        paths.unmatched,
+        [r for r in result.rows if r.category in {"missing_order", "orphan_bill"}],
+    )
+    write_rows(
+        paths.data_quality,
+        [
+            r for r in result.rows
+            if r.category in {
+                "duplicate_bill", "multiple_bills_for_line",
+                "bill_inconsistent", "fx_missing",
+            }
+        ],
+    )
+
+    totals = {
+        "expected_minor": sum(r.expected_minor or 0 for r in result.rows),
+        "actual_minor": sum(r.actual_minor or 0 for r in result.rows),
+        "diff_minor": sum(r.diff_minor or 0 for r in result.rows),
+    }
+    paths.summary.parent.mkdir(parents=True, exist_ok=True)
+    paths.summary.write_text(
+        json.dumps(
+            {"counts": result.counts, "totals": totals, "rows": len(result.rows)},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
 
 class MissingFxRate(Exception):

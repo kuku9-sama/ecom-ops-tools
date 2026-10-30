@@ -8,9 +8,11 @@ from ecommerce.cli import cmd_reconcile
 from ecommerce.domain.models import BillLine, Order, OrderLine
 from ecommerce.services.order_service import read_orders_csv
 from ecommerce.services.reconciliation_service import (
+    ReconReportPaths,
     read_bills_csv,
     read_fx_csv,
     reconcile,
+    write_recon_reports,
 )
 
 DATA = Path(__file__).resolve().parents[1] / "data"
@@ -184,3 +186,25 @@ def test_cli_writes_reports(tmp_path):
     assert summary["counts"]["missing_order"] == 2
     assert (tmp_path / "unmatched.csv").exists()
     assert (tmp_path / "data_quality.csv").exists()
+
+
+def test_write_recon_reports_writes_four_files(tmp_path):
+    orders, _, _ = read_orders_csv(DATA / "orders.csv")
+    bills, _, duplicate_keys = read_bills_csv(DATA / "bills.csv")
+    fx, _ = read_fx_csv(DATA / "fx_rates.csv")
+    result = reconcile(orders, bills, fx, duplicate_keys)
+
+    paths = ReconReportPaths(
+        out=tmp_path / "recon.csv",
+        summary=tmp_path / "summary.json",
+        unmatched=tmp_path / "unmatched.csv",
+        data_quality=tmp_path / "data_quality.csv",
+    )
+    write_recon_reports(result, paths)
+
+    assert paths.out.read_bytes().startswith(b"\xef\xbb\xbf")
+    summary = json.loads(paths.summary.read_text(encoding="utf-8"))
+    assert summary["rows"] == len(result.rows)
+    assert summary["counts"] == result.counts
+    assert paths.unmatched.exists()
+    assert paths.data_quality.exists()

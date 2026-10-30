@@ -1,6 +1,5 @@
 import argparse
 import csv
-import json
 from collections import Counter
 from dataclasses import asdict
 from datetime import datetime
@@ -28,10 +27,11 @@ from ecommerce.services.inventory_service import InventoryService, read_local_st
 from ecommerce.services.order_service import OrderService, read_orders_csv
 from ecommerce.services.product_service import ProductService, read_products_csv
 from ecommerce.services.reconciliation_service import (
-    ReconRow,
+    ReconReportPaths,
     read_bills_csv,
     read_fx_csv,
     reconcile,
+    write_recon_reports,
 )
 
 
@@ -303,49 +303,13 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
 
     result = reconcile(orders, bills, fx, duplicate_keys)
 
-    field_names = list(ReconRow.__dataclass_fields__)
-
-    def write_rows(path: str, rows) -> Path:
-        out = Path(path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        with out.open("w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=field_names)
-            writer.writeheader()
-            for row in rows:
-                writer.writerow(asdict(row))
-        return out
-
-    diff_path = write_rows(args.out, result.rows)
-    unmatched_path = write_rows(
-        args.unmatched,
-        [r for r in result.rows if r.category in {"missing_order", "orphan_bill"}],
+    paths = ReconReportPaths(
+        out=Path(args.out),
+        summary=Path(args.summary),
+        unmatched=Path(args.unmatched),
+        data_quality=Path(args.data_quality),
     )
-    data_quality_path = write_rows(
-        args.data_quality,
-        [
-            r for r in result.rows
-            if r.category in {
-                "duplicate_bill", "multiple_bills_for_line",
-                "bill_inconsistent", "fx_missing",
-            }
-        ],
-    )
-
-    totals = {
-        "expected_minor": sum(r.expected_minor or 0 for r in result.rows),
-        "actual_minor": sum(r.actual_minor or 0 for r in result.rows),
-        "diff_minor": sum(r.diff_minor or 0 for r in result.rows),
-    }
-    summary_path = Path(args.summary)
-    summary_path.parent.mkdir(parents=True, exist_ok=True)
-    summary_path.write_text(
-        json.dumps(
-            {"counts": result.counts, "totals": totals, "rows": len(result.rows)},
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+    write_recon_reports(result, paths)
 
     for issue in order_issues:
         log_event("recon_issue", source="orders", row=issue.row_number,
@@ -361,8 +325,8 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
     print(
         f"issues: orders={len(order_issues)} bills={len(bill_issues)} fx={len(fx_issues)}"
     )
-    print(f"wrote={diff_path} summary={summary_path}")
-    print(f"unmatched={unmatched_path} data_quality={data_quality_path}")
+    print(f"wrote={paths.out} summary={paths.summary}")
+    print(f"unmatched={paths.unmatched} data_quality={paths.data_quality}")
     for category, count in sorted(result.counts.items()):
         print(f"  {category}={count}")
     return 0
