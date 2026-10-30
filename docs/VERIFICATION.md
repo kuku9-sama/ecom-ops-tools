@@ -1,8 +1,8 @@
 # 验证记录
 
-> 日期：2026-10-27
+> 日期：2026-10-30
 > 环境：Windows 11；Python 3.14.7；`.venv`
-> 结论：63 个测试通过；`ruff` 干净；新虚拟环境可按 README 复现；一条命令演示跑通。
+> 结论：77 个测试通过；`ruff` 干净；新虚拟环境可按 README 复现；一条命令演示跑通。
 
 ---
 
@@ -20,6 +20,8 @@
 | `tests/test_product_service.py` | CSV 校验、重复 SKU、幂等、部分失败、超时回查 |
 | `tests/test_sync.py` | 多页同步、失败保留游标、恢复继续 |
 | `tests/test_reconciliation.py` | 行级/订单级对账、汇率回退、CLI 报告输出 |
+| `tests/test_reconciliation_repo.py` | 异常状态 upsert、更新、空表、非法状态约束 |
+| `tests/test_workbench.py` | 工作台空页面、示例运行、缺文件、坏 CSV、状态备注、筛选、导出 |
 | `tests/test_inventory.py` | 本地库存读取、差异分类、重复 SKU |
 | `tests/test_extraction.py` | 正常提取、修复重试、失败队列、JSONL 读取 |
 | `tests/test_api.py` | `/health`、`/orders`、首页、静态资源、对账汇总、库存差异 |
@@ -28,7 +30,7 @@
 命令与结果：
 
 ```text
-pytest -q        → 63 passed
+pytest -q        → 77 passed
 ruff check .     → All checks passed
 ```
 
@@ -104,6 +106,20 @@ G2 追溯性：
 
 ---
 
+## 4.1 对账工作台
+
+手动验证：
+
+1. 双击 `start_demo.bat`，打开看板 → 对账工作台。
+2. 勾选「使用示例数据」，点「开始对账」。
+3. 结果 13 行，状态显示 `待处理 13`。
+4. 把 O1014 的「金额不符」改成「已处理」，备注「已确认」，保存。
+5. 状态筛选「已处理」，只剩这一行；导出 CSV 包含 `status_label` 和备注。
+
+测试覆盖见 `tests/test_workbench.py` 与 `tests/test_reconciliation_repo.py`。
+
+---
+
 ## 5. 一条命令演示
 
 ```bash
@@ -143,7 +159,7 @@ pip install -r requirements.txt
 pip install setuptools
 pip install -e . --no-build-isolation
 python check_env.py          → OK: environment ready
-pytest -q                    → 63 passed
+pytest -q                    → 77 passed
 ruff check .                 → All checks passed
 python scripts/demo.py       → 跑通
 ```
@@ -181,4 +197,5 @@ G3：
 - 对账目前读 CSV，SQLite 版本还没接。
 - 汇总 JSON 的金额合计是原始求和，不是配对后的合计。
 - 真实 DeepSeek 调用未在无 key 环境验证。
-- 本地单用户，不是多租户服务。
+- 工作台按 `(platform, order_id, line_id, category)` 保存状态；同一订单级异常对应多条账单时共享状态。
+- 本地单用户，不是多租户服务；没有登录和 CSRF，只监听 `127.0.0.1`。

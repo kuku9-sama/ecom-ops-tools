@@ -1,8 +1,8 @@
-# 数据契约 v0.5
+# 数据契约 v0.6
 
 > 项目：ecom-ops-tools
-> 日期：2026-10-20
-> 状态：第五版（补充结构化提取）
+> 日期：2026-10-30
+> 状态：第六版（增加对账工作台状态）
 >
 > 这份文档是 CSV、领域模型、SQLite 表、平台适配器、对账规则之间的共同约定。
 > 改字段、改键、改金额语义，先改这里，再改代码。
@@ -11,7 +11,7 @@
 
 ## 1. 范围
 
-v0.5 覆盖：
+v0.6 覆盖：
 
 - 商品草稿（Product）
 - 订单头（Order）
@@ -21,8 +21,9 @@ v0.5 覆盖：
 - 同步运行与逐项状态（SyncRun / SyncItem）
 - 库存快照（InventoryItem / InventoryDiff）
 - 结构化提取结果（ProductDraft / ExtractionFailure）
+- 对账异常处理状态（ReconciliationException）
 
-不在 v0.5：
+不在 v0.6：
 
 - 真实平台签名、限流、分页细节（属于适配器内部实现，对外仍映射到本契约）
 
@@ -253,6 +254,22 @@ sync_state（实现层断点表）：
 - 默认 mock 提取器；可选 DeepSeek，密钥放 `.env`。
 - 失败队列只记录 hash、原始响应、校验错误和时间，不记录真实客户信息。
 
+### 3.9 ReconciliationException（对账异常处理状态）
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| platform | str | 平台键 |
+| platform_order_id | str | 订单号 |
+| line_id | str | 订单行号；空字符串表示订单级 |
+| category | str | 对账差异分类 |
+| status | enum | pending / handled / ignored |
+| note | str | 处理备注，最多 500 字 |
+| updated_at | datetime | 更新时间 |
+
+- 主键：`(platform, platform_order_id, line_id, category)`。
+- 状态跨对账运行保留；异常消失后状态仍留在表里，不再展示。
+- 只记录处理状态，不修改平台数据。
+
 ---
 
 ## 4. 唯一键与约束
@@ -272,6 +289,8 @@ PRIMARY KEY (base_currency, quote_currency, effective_date)
 PRIMARY KEY (run_id)
 -- 同步逐项
 PRIMARY KEY (run_id, item_key)
+-- 对账异常处理状态
+PRIMARY KEY (platform, platform_order_id, line_id, category)
 ```
 
 - 用自然键做主键，不引入自增 id。
@@ -400,3 +419,4 @@ base,quote,rate,effective_date,source
 | 2026-10-20 | v0.3 | 增加 sync_state 断点游标；同步分页/恢复口径 |
 | 2026-10-20 | v0.4 | 增加库存快照与库存比对 |
 | 2026-10-20 | v0.5 | 增加结构化提取与失败队列 |
+| 2026-10-30 | v0.6 | 增加对账异常处理状态与工作台口径 |
