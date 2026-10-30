@@ -285,7 +285,7 @@ orders=5 order_lines=5 products=0
   run=<...> platform=lazada status=succeeded fetched=3 ...
   run=<...> platform=shopee_mock status=succeeded fetched=2 ...
 
-77 passed
+80 passed
 All checks passed
 ```
 
@@ -382,7 +382,7 @@ orders=3 order_lines=3 products=0
 | 1:30–2:10 | 平台同步 | 同一服务换 Shopee/Lazada 适配器；分页 + 断点 |
 | 2:10–2:40 | 对账工作台 | 上传三份 CSV → 13 行异常 → 标记处理 → 导出 |
 | 2:40–2:55 | 库存 + 草稿/提取 | 库存只读比对；商品只建草稿；失败进提取队列 |
-| 2:55–3:00 | 证据与限制 | 77 个测试；Mock 不是真实接入；不写回平台 |
+| 2:55–3:00 | 证据与限制 | 80 个测试；Mock 不是真实接入；不写回平台 |
 
 ---
 

@@ -2,7 +2,7 @@
 
 > 日期：2026-10-30
 > 环境：Windows 11；Python 3.14.7；`.venv`
-> 结论：77 个测试通过；`ruff` 干净；新虚拟环境可按 README 复现；一条命令演示跑通。
+> 结论：80 个测试通过；`ruff` 干净；`pip-audit` 未发现已知漏洞；新虚拟环境可按 README 复现；一条命令演示跑通。
 
 ---
 
@@ -21,7 +21,7 @@
 | `tests/test_sync.py` | 多页同步、失败保留游标、恢复继续 |
 | `tests/test_reconciliation.py` | 行级/订单级对账、汇率回退、CLI 报告输出 |
 | `tests/test_reconciliation_repo.py` | 异常状态 upsert、更新、空表、非法状态约束 |
-| `tests/test_workbench.py` | 工作台空页面、示例运行、缺文件、坏 CSV、状态备注、筛选、导出 |
+| `tests/test_workbench.py` | 工作台空页面、示例运行、缺文件、坏 CSV、状态备注、筛选、导出、上传上限、XSS 转义、CSV 公式注入 |
 | `tests/test_inventory.py` | 本地库存读取、差异分类、重复 SKU |
 | `tests/test_extraction.py` | 正常提取、修复重试、失败队列、JSONL 读取 |
 | `tests/test_api.py` | `/health`、`/orders`、首页、静态资源、对账汇总、库存差异 |
@@ -30,7 +30,7 @@
 命令与结果：
 
 ```text
-pytest -q        → 77 passed
+pytest -q        → 80 passed
 ruff check .     → All checks passed
 ```
 
@@ -159,7 +159,7 @@ pip install -r requirements.txt
 pip install setuptools
 pip install -e . --no-build-isolation
 python check_env.py          → OK: environment ready
-pytest -q                    → 77 passed
+pytest -q                    → 80 passed
 ruff check .                 → All checks passed
 python scripts/demo.py       → 跑通
 ```
