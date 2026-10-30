@@ -1,5 +1,7 @@
 # ecom-ops-tools
 
+[![CI](https://github.com/kuku9-sama/ecom-ops-tools/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kuku9-sama/ecom-ops-tools/actions/workflows/ci.yml)
+
 跨境电商运营自动化小工具。统一商品/订单/库存/账单模型，用适配器接不同平台；先把一条可运行的链路做稳，再扩展。
 
 当前状态：可本地演示。平台侧是 Mock，没有真实账号和密钥。
@@ -121,9 +123,14 @@ CLI / FastAPI 薄层
 
 ## 数据与边界
 
+- 本地工具，默认只监听 `127.0.0.1`；没有登录和权限控制，不要部署到公网。
 - 数据是合成的，不含真实客户信息。
 - `data/README.md` 记录每个脏数据用例的预期行为。
 - 库存比对只读；商品只建草稿；不自动退款/改价/写回库存。
 - 可选：复制 `.env.example` 为 `.env`，填 `DEEPSEEK_API_KEY`；`.env` 不进 git。
 - 看板布局使用 Tabler 1.7.1（MIT），许可证随文件放在 `src/ecommerce/api/static/vendor/tabler/`。
 - Mock 不是真实接入。
+
+## License
+
+MIT，见 [LICENSE](LICENSE)。
