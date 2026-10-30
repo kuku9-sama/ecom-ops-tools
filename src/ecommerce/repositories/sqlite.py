@@ -281,3 +281,51 @@ class ExtractionRepository:
         return self._conn.execute(
             "SELECT COUNT(*) FROM extraction_failures"
         ).fetchone()[0]
+
+
+class ReconciliationRepository:
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+
+    def upsert_status(
+        self,
+        platform: str,
+        platform_order_id: str,
+        line_id: str,
+        category: str,
+        status: str,
+        note: str,
+    ) -> None:
+        self._conn.execute(
+            "INSERT INTO reconciliation_exceptions "
+            "(platform, platform_order_id, line_id, category, status, note, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT (platform, platform_order_id, line_id, category) DO UPDATE SET "
+            "status = excluded.status, "
+            "note = excluded.note, "
+            "updated_at = excluded.updated_at",
+            (
+                platform,
+                platform_order_id,
+                line_id,
+                category,
+                status,
+                note,
+                datetime.now(UTC).isoformat(),
+            ),
+        )
+
+    def load_statuses(self) -> dict[tuple[str, str, str, str], dict[str, str]]:
+        rows = self._conn.execute(
+            "SELECT platform, platform_order_id, line_id, category, status, note "
+            "FROM reconciliation_exceptions"
+        ).fetchall()
+        return {
+            (
+                row["platform"],
+                row["platform_order_id"],
+                row["line_id"],
+                row["category"],
+            ): {"status": row["status"], "note": row["note"]}
+            for row in rows
+        }

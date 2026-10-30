@@ -115,3 +115,16 @@ CREATE TABLE IF NOT EXISTS extraction_failures (
     validation_error TEXT,
     created_at       TEXT NOT NULL
 );
+
+-- 对账异常处理状态：按异常键跨运行保留。
+CREATE TABLE IF NOT EXISTS reconciliation_exceptions (
+    platform           TEXT NOT NULL,
+    platform_order_id  TEXT NOT NULL,
+    line_id            TEXT NOT NULL DEFAULT '',
+    category           TEXT NOT NULL,
+    status             TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'handled', 'ignored')),
+    note               TEXT NOT NULL DEFAULT '',
+    updated_at         TEXT NOT NULL,
+    PRIMARY KEY (platform, platform_order_id, line_id, category)
+);
