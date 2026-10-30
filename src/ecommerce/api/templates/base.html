@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}ecom-ops-tools 本地看板{% endblock %}</title>
+  <link rel="stylesheet" href="/static/vendor/tabler/tabler.min.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+      <div class="container-fluid">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="展开侧边栏">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="navbar-brand navbar-brand-autodark">
+          <a href="/" class="d-flex align-items-center text-decoration-none">
+            <span class="avatar avatar-sm bg-primary text-white me-2">EO</span>
+            <span class="h3 mb-0">ecom-ops-tools</span>
+          </a>
+        </div>
+
+        <div class="navbar-footer">
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <span class="nav-link disabled">
+                <span class="nav-link-icon">
+                  <span class="status-dot status-dot-animated bg-green d-block"></span>
+                </span>
+                <span class="nav-link-title">本地 Mock 环境</span>
+              </span>
+            </li>
+          </ul>
+        </div>
+
+        <nav class="collapse navbar-collapse" id="sidebar-menu" aria-label="侧边栏">
+          <ul class="navbar-nav pt-lg-3">
+            <li class="nav-section-title">看板</li>
+            <li class="nav-item">
+              <a class="nav-link {{ 'active' if active_nav == 'overview' else '' }}" href="/">
+                <span class="nav-link-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
+                    <path d="M5 12l-2 0l9 -9l9 9l-2 0" />
+                    <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+                    <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+                  </svg>
+                </span>
+                <span class="nav-link-title">概览</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {{ 'active' if active_nav == 'inventory' else '' }}" href="/inventory">
+                <span class="nav-link-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
+                    <path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" />
+                    <path d="M12 12l8 -4.5" />
+                    <path d="M12 12l0 9" />
+                    <path d="M12 12l-8 -4.5" />
+                  </svg>
+                </span>
+                <span class="nav-link-title">库存差异</span>
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </aside>
+
+    <div class="page-wrapper">
+      <main id="content" class="d-flex flex-column flex-fill">
+        <div class="page-header d-print-none">
+          <div class="container-xl">
+            <div class="row g-2 align-items-center">
+              <div class="col">
+                <div class="page-pretitle">{% block pretitle %}本地演示 · 平台数据以平台为准{% endblock %}</div>
+                <h1 class="page-title">{% block page_title %}运营概览{% endblock %}</h1>
+              </div>
+              <div class="col-auto ms-auto d-print-none">
+                <div class="btn-list">
+                  {% block page_actions %}
+                  <span class="badge bg-azure-lt">只读</span>
+                  <a class="btn" href="{{ request.url.path }}">刷新</a>
+                  {% endblock %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="page-body">
+          <div class="container-xl">
+            {% block content %}{% endblock %}
+          </div>
+        </div>
+
+        <footer class="footer footer-transparent d-print-none">
+          <div class="container-xl">
+            <div class="row text-center align-items-center">
+              <div class="col-12 col-lg-auto mt-3 mt-lg-0">
+                <ul class="list-inline list-inline-dots mb-0">
+                  <li class="list-inline-item">ecom-ops-tools 本地演示</li>
+                  <li class="list-inline-item">数据以平台为准</li>
+                  <li class="list-inline-item">
+                    <a href="https://github.com/tabler/tabler" class="link-secondary" rel="noopener">UI: Tabler (MIT)</a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </main>
+    </div>
+  </div>
+  <script src="/static/vendor/tabler/tabler.min.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

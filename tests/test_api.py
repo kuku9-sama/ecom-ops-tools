@@ -63,3 +63,21 @@ def test_static_asset_served(tmp_path, monkeypatch):
 
     assert resp.status_code == 200
     assert "Tabler" in resp.text
+
+
+def test_inventory_page(tmp_path, monkeypatch):
+    _prepare_db(tmp_path, monkeypatch)
+    inventory_path = tmp_path / "inventory.csv"
+    inventory_path.write_text(
+        "platform,sku,platform_stock,local_stock,diff,category\n"
+        "lazada,A,1,2,-1,mismatch\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("INVENTORY_DIFF_PATH", str(inventory_path))
+    client = TestClient(app)
+
+    resp = client.get("/inventory")
+
+    assert resp.status_code == 200
+    assert "库存差异" in resp.text
+    assert "lazada" in resp.text

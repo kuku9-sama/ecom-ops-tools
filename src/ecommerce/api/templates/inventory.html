@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block page_title %}库存差异{% endblock %}
+
+{% block page_actions %}
+<span class="badge bg-azure-lt">只读比对</span>
+<a class="btn" href="{{ request.url.path }}">刷新</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">平台库存 vs 本地库存</h2>
+    <div class="card-actions">
+      <span class="badge bg-secondary-lt">{{ inventory_rows|length }} 行差异</span>
+    </div>
+  </div>
+  {% if inventory_rows %}
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th>平台</th>
+          <th>SKU</th>
+          <th class="text-end">平台库存</th>
+          <th class="text-end">本地库存</th>
+          <th class="text-end">差异</th>
+          <th>分类</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in inventory_rows %}
+        <tr>
+          <td>{{ row.platform }}</td>
+          <td>{{ row.sku }}</td>
+          <td class="text-end">{{ row.platform_stock }}</td>
+          <td class="text-end">{{ row.local_stock|default('—', true) }}</td>
+          <td class="text-end {{ 'text-danger' if row.diff and row.diff.startswith('-') else '' }}">{{ row.diff|default('—', true) }}</td>
+          <td>
+            <span class="badge {{ 'bg-danger-lt' if row.category == 'mismatch' else 'bg-warning-lt' }}">{{ row.category_label }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <p class="text-secondary mb-0">暂无库存差异。先跑 <code>ecommerce.cli inventory</code>。</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,365 +1,186 @@
-<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>ecom-ops-tools 本地看板</title>
-  <link rel="stylesheet" href="/static/vendor/tabler/tabler.min.css">
-</head>
-<body>
-  <div class="page">
-    <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
-      <div class="container-fluid">
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="展开侧边栏">
-          <span class="navbar-toggler-icon"></span>
-        </button>
+{% extends "base.html" %}
 
-        <div class="navbar-brand navbar-brand-autodark">
-          <a href="/" class="d-flex align-items-center text-decoration-none">
-            <span class="avatar avatar-sm bg-primary text-white me-2">EO</span>
-            <span class="h3 mb-0">ecom-ops-tools</span>
-          </a>
+{% block page_title %}运营概览{% endblock %}
+
+{% block content %}
+<div class="row row-deck row-cards">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto">
+            <span class="bg-primary text-white avatar avatar-square">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
+                <path d="M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+                <path d="M17 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+                <path d="M17 17h-11v-14h-2" />
+                <path d="M6 5l14 1l-1 7h-13" />
+              </svg>
+            </span>
+          </div>
+          <div class="col">
+            <div class="text-secondary">订单</div>
+            <div class="h1 mb-0">{{ order_count }}</div>
+          </div>
         </div>
-
-        <div class="navbar-footer">
-          <ul class="navbar-nav">
-            <li class="nav-item">
-              <span class="nav-link disabled">
-                <span class="nav-link-icon">
-                  <span class="status-dot status-dot-animated bg-green d-block"></span>
-                </span>
-                <span class="nav-link-title">本地 Mock 环境</span>
-              </span>
-            </li>
-          </ul>
-        </div>
-
-        <nav class="collapse navbar-collapse" id="sidebar-menu" aria-label="侧边栏">
-          <ul class="navbar-nav pt-lg-3">
-            <li class="nav-section-title">看板</li>
-            <li class="nav-item">
-              <a class="nav-link active" href="#overview">
-                <span class="nav-link-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
-                    <path d="M5 12l-2 0l9 -9l9 9l-2 0" />
-                    <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
-                    <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
-                  </svg>
-                </span>
-                <span class="nav-link-title">概览</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="#sync">
-                <span class="nav-link-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
-                    <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
-                    <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
-                  </svg>
-                </span>
-                <span class="nav-link-title">同步记录</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="#recon">
-                <span class="nav-link-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
-                    <path d="M7 20l10 0" />
-                    <path d="M6 6l6 -1l6 1" />
-                    <path d="M12 3l0 17" />
-                    <path d="M9 12l-3 -6l-3 6a3 3 0 0 0 6 0" />
-                    <path d="M21 12l-3 -6l-3 6a3 3 0 0 0 6 0" />
-                  </svg>
-                </span>
-                <span class="nav-link-title">对账汇总</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="#inventory">
-                <span class="nav-link-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
-                    <path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" />
-                    <path d="M12 12l8 -4.5" />
-                    <path d="M12 12l0 9" />
-                    <path d="M12 12l-8 -4.5" />
-                  </svg>
-                </span>
-                <span class="nav-link-title">库存差异</span>
-              </a>
-            </li>
-          </ul>
-        </nav>
       </div>
-    </aside>
-
-    <div class="page-wrapper">
-      <main id="content" class="d-flex flex-column flex-fill">
-        <div class="page-header d-print-none">
-          <div class="container-xl">
-            <div class="row g-2 align-items-center">
-              <div class="col">
-                <div class="page-pretitle">本地演示 · 平台数据以平台为准</div>
-                <h1 class="page-title">运营概览</h1>
-              </div>
-              <div class="col-auto ms-auto d-print-none">
-                <div class="btn-list">
-                  <span class="badge bg-azure-lt">只读</span>
-                  <a class="btn" href="/">刷新</a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="page-body">
-          <div class="container-xl">
-            <div id="overview" class="row row-deck row-cards">
-              <div class="col-sm-6 col-lg-3">
-                <div class="card card-sm">
-                  <div class="card-body">
-                    <div class="row align-items-center">
-                      <div class="col-auto">
-                        <span class="bg-primary text-white avatar avatar-square">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
-                            <path d="M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
-                            <path d="M17 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
-                            <path d="M17 17h-11v-14h-2" />
-                            <path d="M6 5l14 1l-1 7h-13" />
-                          </svg>
-                        </span>
-                      </div>
-                      <div class="col">
-                        <div class="text-secondary">订单</div>
-                        <div class="h1 mb-0">{{ order_count }}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="col-sm-6 col-lg-3">
-                <div class="card card-sm">
-                  <div class="card-body">
-                    <div class="row align-items-center">
-                      <div class="col-auto">
-                        <span class="bg-azure text-white avatar avatar-square">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
-                            <path d="M13 5h8" />
-                            <path d="M13 9h5" />
-                            <path d="M13 15h8" />
-                            <path d="M13 19h5" />
-                            <path d="M3 5h4v4h-4z" />
-                            <path d="M3 15h4v4h-4z" />
-                          </svg>
-                        </span>
-                      </div>
-                      <div class="col">
-                        <div class="text-secondary">订单行</div>
-                        <div class="h1 mb-0">{{ line_count }}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="col-sm-6 col-lg-3">
-                <div class="card card-sm">
-                  <div class="card-body">
-                    <div class="row align-items-center">
-                      <div class="col-auto">
-                        <span class="bg-green text-white avatar avatar-square">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
-                            <path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" />
-                            <path d="M12 12l8 -4.5" />
-                            <path d="M12 12l0 9" />
-                            <path d="M12 12l-8 -4.5" />
-                          </svg>
-                        </span>
-                      </div>
-                      <div class="col">
-                        <div class="text-secondary">商品草稿</div>
-                        <div class="h1 mb-0">{{ product_count }}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="col-sm-6 col-lg-3">
-                <div class="card card-sm">
-                  <div class="card-body">
-                    <div class="row align-items-center">
-                      <div class="col-auto">
-                        <span class="bg-orange text-white avatar avatar-square">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
-                            <path d="M12 9v4" />
-                            <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" />
-                            <path d="M12 16h.01" />
-                          </svg>
-                        </span>
-                      </div>
-                      <div class="col">
-                        <div class="text-secondary">库存差异</div>
-                        <div class="h1 mb-0">{{ inventory_rows|length }}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div id="sync" class="card mt-3">
-              <div class="card-header">
-                <h2 class="card-title">最近同步</h2>
-                <div class="card-actions">
-                  <span class="badge bg-secondary-lt">{{ runs|length }} 次运行</span>
-                </div>
-              </div>
-              {% if runs %}
-              <div class="table-responsive">
-                <table class="table table-vcenter card-table">
-                  <thead>
-                    <tr>
-                      <th>run</th>
-                      <th>平台</th>
-                      <th>状态</th>
-                      <th class="text-end">抓取</th>
-                      <th class="text-end">新增</th>
-                      <th class="text-end">更新</th>
-                      <th>开始</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for run in runs %}
-                    <tr class="{{ 'table-danger' if run.status == 'failed' else '' }}">
-                      <td><code>{{ run.run_id[:8] }}</code></td>
-                      <td>{{ run.platform }}</td>
-                      <td>
-                        {% if run.status == 'succeeded' %}
-                        <span class="badge bg-success-lt">成功</span>
-                        {% elif run.status == 'failed' %}
-                        <span class="badge bg-danger-lt">失败</span>
-                        {% else %}
-                        <span class="badge bg-secondary-lt">{{ run.status }}</span>
-                        {% endif %}
-                      </td>
-                      <td class="text-end">{{ run.fetched }}</td>
-                      <td class="text-end">{{ run.inserted }}</td>
-                      <td class="text-end">{{ run.updated }}</td>
-                      <td class="text-secondary text-nowrap">{{ run.started_at[:19]|replace('T', ' ') }}</td>
-                    </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-              {% else %}
-              <div class="card-body">
-                <p class="text-secondary mb-0">暂无同步记录。</p>
-              </div>
-              {% endif %}
-            </div>
-
-            <div class="row row-cards mt-3">
-              <div id="recon" class="col-12 col-xl-6">
-                <div class="card h-100">
-                  <div class="card-header">
-                    <h2 class="card-title">对账汇总</h2>
-                    <div class="card-actions">
-                      {% if recon %}
-                      <span class="badge bg-secondary-lt">{{ recon.rows }} 行结果</span>
-                      {% endif %}
-                    </div>
-                  </div>
-                  {% if recon %}
-                  <div class="card-body">
-                    <div class="row row-cols-1 row-cols-sm-2 g-2">
-                      {% for item in recon_rows %}
-                      <div class="col">
-                        <div class="d-flex align-items-center justify-content-between border rounded px-3 py-2">
-                          <span class="badge {{ 'bg-success-lt' if item.key == 'matched' else 'bg-warning-lt' }}">{{ item.label }}</span>
-                          <span class="fw-bold">{{ item.count }}</span>
-                        </div>
-                      </div>
-                      {% endfor %}
-                    </div>
-                  </div>
-                  <div class="card-footer text-secondary">
-                    金额合计（最小货币单位，混合币种原始求和，仅参考）：
-                    期望 {{ recon.totals.expected_minor|default('—') }}，
-                    实际 {{ recon.totals.actual_minor|default('—') }}，
-                    差额 {{ recon.totals.diff_minor|default('—') }}
-                  </div>
-                  {% else %}
-                  <div class="card-body">
-                    <p class="text-secondary mb-0">暂无对账结果。先跑 <code>ecommerce.cli reconcile</code>。</p>
-                  </div>
-                  {% endif %}
-                </div>
-              </div>
-
-              <div id="inventory" class="col-12 col-xl-6">
-                <div class="card h-100">
-                  <div class="card-header">
-                    <h2 class="card-title">库存差异</h2>
-                    <div class="card-actions">
-                      <span class="badge bg-secondary-lt">只读比对</span>
-                    </div>
-                  </div>
-                  {% if inventory_rows %}
-                  <div class="table-responsive">
-                    <table class="table table-vcenter card-table">
-                      <thead>
-                        <tr>
-                          <th>平台</th>
-                          <th>SKU</th>
-                          <th class="text-end">平台库存</th>
-                          <th class="text-end">本地库存</th>
-                          <th class="text-end">差异</th>
-                          <th>分类</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% for row in inventory_rows %}
-                        <tr>
-                          <td>{{ row.platform }}</td>
-                          <td>{{ row.sku }}</td>
-                          <td class="text-end">{{ row.platform_stock }}</td>
-                          <td class="text-end">{{ row.local_stock|default('—', true) }}</td>
-                          <td class="text-end {{ 'text-danger' if row.diff and row.diff.startswith('-') else '' }}">{{ row.diff|default('—', true) }}</td>
-                          <td>
-                            <span class="badge {{ 'bg-danger-lt' if row.category == 'mismatch' else 'bg-warning-lt' }}">{{ row.category_label }}</span>
-                          </td>
-                        </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-                  </div>
-                  {% else %}
-                  <div class="card-body">
-                    <p class="text-secondary mb-0">暂无库存差异。先跑 <code>ecommerce.cli inventory</code>。</p>
-                  </div>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <footer class="footer footer-transparent d-print-none">
-          <div class="container-xl">
-            <div class="row text-center align-items-center">
-              <div class="col-12 col-lg-auto mt-3 mt-lg-0">
-                <ul class="list-inline list-inline-dots mb-0">
-                  <li class="list-inline-item">ecom-ops-tools 本地演示</li>
-                  <li class="list-inline-item">数据以平台为准</li>
-                  <li class="list-inline-item">
-                    <a href="https://github.com/tabler/tabler" class="link-secondary" rel="noopener">UI: Tabler (MIT)</a>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </footer>
-      </main>
     </div>
   </div>
-  <script src="/static/vendor/tabler/tabler.min.js"></script>
-</body>
-</html>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto">
+            <span class="bg-azure text-white avatar avatar-square">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
+                <path d="M13 5h8" />
+                <path d="M13 9h5" />
+                <path d="M13 15h8" />
+                <path d="M13 19h5" />
+                <path d="M3 5h4v4h-4z" />
+                <path d="M3 15h4v4h-4z" />
+              </svg>
+            </span>
+          </div>
+          <div class="col">
+            <div class="text-secondary">订单行</div>
+            <div class="h1 mb-0">{{ line_count }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto">
+            <span class="bg-green text-white avatar avatar-square">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
+                <path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" />
+                <path d="M12 12l8 -4.5" />
+                <path d="M12 12l0 9" />
+                <path d="M12 12l-8 -4.5" />
+              </svg>
+            </span>
+          </div>
+          <div class="col">
+            <div class="text-secondary">商品草稿</div>
+            <div class="h1 mb-0">{{ product_count }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto">
+            <span class="bg-orange text-white avatar avatar-square">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true">
+                <path d="M12 9v4" />
+                <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" />
+                <path d="M12 16h.01" />
+              </svg>
+            </span>
+          </div>
+          <div class="col">
+            <div class="text-secondary">库存差异</div>
+            <div class="h1 mb-0">{{ inventory_count }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header">
+    <h2 class="card-title">最近同步</h2>
+    <div class="card-actions">
+      <span class="badge bg-secondary-lt">{{ runs|length }} 次运行</span>
+    </div>
+  </div>
+  {% if runs %}
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th>run</th>
+          <th>平台</th>
+          <th>状态</th>
+          <th class="text-end">抓取</th>
+          <th class="text-end">新增</th>
+          <th class="text-end">更新</th>
+          <th>开始</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in runs %}
+        <tr class="{{ 'table-danger' if run.status == 'failed' else '' }}">
+          <td><code>{{ run.run_id[:8] }}</code></td>
+          <td>{{ run.platform }}</td>
+          <td>
+            {% if run.status == 'succeeded' %}
+            <span class="badge bg-success-lt">成功</span>
+            {% elif run.status == 'failed' %}
+            <span class="badge bg-danger-lt">失败</span>
+            {% else %}
+            <span class="badge bg-secondary-lt">{{ run.status }}</span>
+            {% endif %}
+          </td>
+          <td class="text-end">{{ run.fetched }}</td>
+          <td class="text-end">{{ run.inserted }}</td>
+          <td class="text-end">{{ run.updated }}</td>
+          <td class="text-secondary text-nowrap">{{ run.started_at[:19]|replace('T', ' ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <p class="text-secondary mb-0">暂无同步记录。</p>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card mt-3">
+  <div class="card-header">
+    <h2 class="card-title">对账汇总</h2>
+    <div class="card-actions">
+      {% if recon %}
+      <span class="badge bg-secondary-lt">{{ recon.rows }} 行结果</span>
+      {% endif %}
+    </div>
+  </div>
+  {% if recon %}
+  <div class="card-body">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-2">
+      {% for item in recon_rows %}
+      <div class="col">
+        <div class="d-flex align-items-center justify-content-between border rounded px-3 py-2">
+          <span class="badge {{ 'bg-success-lt' if item.key == 'matched' else 'bg-warning-lt' }}">{{ item.label }}</span>
+          <span class="fw-bold">{{ item.count }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card-footer d-flex align-items-center">
+    <span class="text-secondary">
+      金额合计（最小货币单位，混合币种原始求和，仅参考）：
+      期望 {{ recon.totals.expected_minor|default('—') }}，
+      实际 {{ recon.totals.actual_minor|default('—') }}，
+      差额 {{ recon.totals.diff_minor|default('—') }}
+    </span>
+    <a class="btn btn-sm ms-auto" href="/inventory">查看库存差异</a>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <p class="text-secondary mb-0">暂无对账结果。先跑 <code>ecommerce.cli reconcile</code>。</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

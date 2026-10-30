@@ -69,6 +69,15 @@ def _load_inventory_rows():
         return list(csv.DictReader(f))
 
 
+def _inventory_rows_with_labels():
+    rows = _load_inventory_rows()
+    for row in rows:
+        row["category_label"] = INVENTORY_LABELS.get(
+            row["category"], row["category"]
+        )
+    return rows
+
+
 @app.get("/health")
 def health():
     return {"ok": True}
@@ -106,6 +115,18 @@ def inventory_diff():
     return _load_inventory_rows()
 
 
+@app.get("/inventory", response_class=HTMLResponse)
+def inventory_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="inventory.html",
+        context={
+            "active_nav": "inventory",
+            "inventory_rows": _inventory_rows_with_labels(),
+        },
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
@@ -130,22 +151,19 @@ def index(
             key=lambda row: (row["key"] == "matched", -row["count"], row["key"]),
         )
 
-    inventory_rows = _load_inventory_rows()
-    for row in inventory_rows:
-        row["category_label"] = INVENTORY_LABELS.get(
-            row["category"], row["category"]
-        )
+    inventory_count = len(_load_inventory_rows())
 
     return templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
+            "active_nav": "overview",
             "order_count": order_count,
             "line_count": line_count,
             "product_count": product_count,
             "runs": SyncRepository(conn).recent_runs(5),
             "recon": recon,
             "recon_rows": recon_rows,
-            "inventory_rows": inventory_rows,
+            "inventory_count": inventory_count,
         },
     )
