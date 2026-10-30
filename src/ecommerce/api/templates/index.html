@@ -73,7 +73,7 @@
     </div>
   </div>
   <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
+    <a class="card card-sm text-reset text-decoration-none" href="/reconciliation">
       <div class="card-body">
         <div class="row align-items-center">
           <div class="col-auto">
@@ -86,12 +86,12 @@
             </span>
           </div>
           <div class="col">
-            <div class="text-secondary">库存差异</div>
-            <div class="h1 mb-0">{{ inventory_count }}</div>
+            <div class="text-secondary">待处理异常</div>
+            <div class="h1 mb-0">{{ pending_count }}</div>
           </div>
         </div>
       </div>
-    </div>
+    </a>
   </div>
 </div>
 
@@ -175,7 +175,10 @@
       实际 {{ recon.totals.actual_minor|default('—') }}，
       差额 {{ recon.totals.diff_minor|default('—') }}
     </span>
-    <a class="btn btn-sm ms-auto" href="/inventory">查看库存差异</a>
+    <div class="ms-auto d-flex gap-2">
+      <a class="btn btn-sm" href="/inventory">库存差异</a>
+      <a class="btn btn-sm btn-primary" href="/reconciliation">处理异常</a>
+    </div>
   </div>
   {% else %}
   <div class="card-body">

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block page_title %}对账工作台{% endblock %}
+
+{% block page_actions %}
+<span class="badge bg-azure-lt">本地处理</span>
+<a class="btn" href="/reconciliation">刷新</a>
+{% endblock %}
+
+{% block content %}
+{% if msg %}
+<div class="alert alert-success">{{ msg }}</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">导入对账文件</h2>
+  </div>
+  <form class="card-body" method="post" action="/reconciliation/run" enctype="multipart/form-data">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="orders">订单 CSV</label>
+        <input class="form-control" type="file" id="orders" name="orders" accept=".csv">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="bills">账单 CSV</label>
+        <input class="form-control" type="file" id="bills" name="bills" accept=".csv">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="fx">汇率 CSV</label>
+        <input class="form-control" type="file" id="fx" name="fx" accept=".csv">
+      </div>
+    </div>
+    <div class="form-check mt-3">
+      <input class="form-check-input" type="checkbox" id="use_sample" name="use_sample" value="1">
+      <label class="form-check-label" for="use_sample">使用示例数据（data/ 下的三份 CSV）</label>
+    </div>
+    <div class="mt-3 d-flex align-items-center">
+      <button class="btn btn-primary" type="submit">开始对账</button>
+      <span class="text-secondary ms-3">文件只在本机处理，不写回平台。</span>
+    </div>
+  </form>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header">
+    <h2 class="card-title">对账结果</h2>
+    <div class="card-actions">
+      <span class="badge bg-secondary-lt">共 {{ total_rows }} 行</span>
+      <a class="btn btn-sm" href="/reconciliation/export?{{ export_query }}">导出 CSV</a>
+    </div>
+  </div>
+  <div class="card-body border-bottom">
+    <div class="d-flex flex-wrap gap-2">
+      <span class="badge bg-secondary-lt">全部 {{ total_rows }}</span>
+      {% for key, label in status_options %}
+      <span class="badge {{ 'bg-warning-lt' if key == 'pending' else ('bg-success-lt' if key == 'handled' else 'bg-secondary-lt') }}">{{ label }} {{ status_counts.get(key, 0) }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  <form class="card-body border-bottom" method="get" action="/reconciliation">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label" for="filter-category">分类</label>
+        <select class="form-select" id="filter-category" name="category">
+          <option value="">全部</option>
+          {% for key, label in category_options %}
+          <option value="{{ key }}" {{ 'selected' if key == selected_category else '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="filter-status">状态</label>
+        <select class="form-select" id="filter-status" name="status">
+          <option value="">全部</option>
+          {% for key, label in status_options %}
+          <option value="{{ key }}" {{ 'selected' if key == selected_status else '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">筛选</button>
+        <a class="btn" href="/reconciliation">清除</a>
+      </div>
+    </div>
+  </form>
+
+  {% if rows %}
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th>状态</th>
+          <th>分类</th>
+          <th>平台</th>
+          <th>订单号</th>
+          <th>行号</th>
+          <th class="text-end">期望</th>
+          <th class="text-end">实际</th>
+          <th class="text-end">差额</th>
+          <th>说明</th>
+          <th>处理</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>
+            <span class="badge {{ 'bg-warning-lt' if row.status == 'pending' else ('bg-success-lt' if row.status == 'handled' else 'bg-secondary-lt') }}">{{ row.status_label }}</span>
+          </td>
+          <td>
+            <span class="badge {{ 'bg-success-lt' if row.category == 'matched' else 'bg-warning-lt' }}">{{ row.category_label }}</span>
+          </td>
+          <td>{{ row.platform }}</td>
+          <td>{{ row.platform_order_id }}</td>
+          <td>{{ row.line_id|default('—', true) }}</td>
+          <td class="text-end">{{ row.expected_minor|default('—', true) }}</td>
+          <td class="text-end">{{ row.actual_minor|default('—', true) }}</td>
+          <td class="text-end {{ 'text-danger' if row.diff_minor and row.diff_minor.startswith('-') else '' }}">{{ row.diff_minor|default('—', true) }}</td>
+          <td class="text-secondary">{{ row.message }}</td>
+          <td>
+            <form method="post" action="/reconciliation/action" class="d-flex gap-1 align-items-center">
+              <input type="hidden" name="platform" value="{{ row.platform }}">
+              <input type="hidden" name="platform_order_id" value="{{ row.platform_order_id }}">
+              <input type="hidden" name="line_id" value="{{ row.line_id }}">
+              <input type="hidden" name="category" value="{{ row.category }}">
+              <input type="hidden" name="next_category" value="{{ selected_category }}">
+              <input type="hidden" name="next_status" value="{{ selected_status }}">
+              <select class="form-select form-select-sm" name="status" aria-label="处理状态" style="width: 96px;">
+                {% for key, label in status_options %}
+                <option value="{{ key }}" {{ 'selected' if key == row.status else '' }}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              <input class="form-control form-control-sm" type="text" name="note" value="{{ row.note }}" placeholder="备注" aria-label="备注" style="min-width: 110px;">
+              <button class="btn btn-sm" type="submit">保存</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if summary %}
+  <div class="card-footer text-secondary">
+    金额合计（最小货币单位，混合币种原始求和，仅参考）：
+    期望 {{ summary.totals.expected_minor|default('—') }}，
+    实际 {{ summary.totals.actual_minor|default('—') }}，
+    差额 {{ summary.totals.diff_minor|default('—') }}
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="card-body">
+    {% if total_rows %}
+    <p class="text-secondary mb-0">没有符合筛选条件的异常。<a href="/reconciliation">清除筛选</a>。</p>
+    {% else %}
+    <p class="text-secondary mb-0">还没有对账结果。上传三个 CSV，或勾选示例数据后点“开始对账”。</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
