@@ -6,17 +6,15 @@ packages = [
     "pandas",
     "pydantic",
     "pytest",
-    "openpyxl",
     "fastapi",
     "uvicorn",
+    "python-multipart",
     "jinja2",
     "tenacity",
     "openai",
     "pydantic-settings",
     "httpx",
     "responses",
-    "Faker",
-    "defusedxml",
     "ruff",
 ]
 
