@@ -170,3 +170,44 @@ def test_export_worklist_csv(workbench):
     assert "已联系平台" in text
     assert "O1014" in text
     assert "O1011" not in text
+
+
+def test_upload_size_limit(workbench, monkeypatch):
+    import ecommerce.api.app as app_module
+
+    monkeypatch.setattr(app_module, "MAX_UPLOAD_BYTES", 10)
+    client = TestClient(app)
+
+    resp = client.post(
+        "/reconciliation/run",
+        data={"use_sample": "1"},
+        files={"orders": ("orders.csv", b"x" * 11, "text/csv")},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 303
+    page = client.get(resp.headers["location"])
+    assert "文件超过" in page.text
+
+
+def test_note_is_html_escaped(workbench):
+    client = TestClient(app)
+    _run_sample(client)
+    _handle_amount_mismatch(client, note="<script>alert(1)</script>")
+
+    page = client.get("/reconciliation?status=handled")
+
+    assert "&lt;script&gt;" in page.text
+    assert "<script>alert(1)</script>" not in page.text
+
+
+def test_export_escapes_formula_like_text(workbench):
+    client = TestClient(app)
+    _run_sample(client)
+    _handle_amount_mismatch(client, note='=HYPERLINK("http://example.com")')
+
+    resp = client.get("/reconciliation/export?status=handled")
+    text = resp.content.decode("utf-8-sig")
+
+    assert "'=HYPERLINK" in text
+    assert "-1000" in text

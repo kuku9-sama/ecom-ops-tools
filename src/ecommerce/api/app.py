@@ -85,6 +85,26 @@ WORKLIST_FIELDS = [
     "message",
 ]
 
+CSV_TEXT_FIELDS = {
+    "platform",
+    "platform_order_id",
+    "line_id",
+    "category",
+    "category_label",
+    "status",
+    "status_label",
+    "note",
+    "fx_rate_source",
+    "message",
+}
+
+
+def _csv_safe(value) -> str:
+    text = value or ""
+    if text[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + text
+    return text
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = PROJECT_ROOT / "data"
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -294,7 +314,8 @@ async def reconciliation_run(
                 if upload is not None and upload.filename:
                     data = await upload.read()
                     if len(data) > MAX_UPLOAD_BYTES:
-                        raise ValueError(f"{name} 文件超过 20 MB")
+                        limit_mb = max(1, MAX_UPLOAD_BYTES // (1024 * 1024))
+                        raise ValueError(f"{name} 文件超过 {limit_mb} MB")
                     target = Path(tmp) / f"{name}.csv"
                     target.write_bytes(data)
                     inputs[name] = target
@@ -380,7 +401,15 @@ def reconciliation_export(
         buf, fieldnames=WORKLIST_FIELDS, extrasaction="ignore"
     )
     writer.writeheader()
-    writer.writerows(rows)
+    for row in rows:
+        writer.writerow(
+            {
+                key: _csv_safe(row.get(key, ""))
+                if key in CSV_TEXT_FIELDS
+                else row.get(key, "")
+                for key in WORKLIST_FIELDS
+            }
+        )
     return Response(
         content=buf.getvalue().encode("utf-8-sig"),
         media_type="text/csv",
